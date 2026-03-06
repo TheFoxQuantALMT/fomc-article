@@ -894,55 +894,10 @@
 
 <h2 id="graphrag">When Vector Search Is Not Enough: GraphRAG</h2>
 
-<div class="diagram">
-  <div class="diagram-title">GraphRAG Pipeline</div>
-
-  <!-- Document Ingestion -->
-  <div style="text-align: center; font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px;">Document Ingestion</div>
-  <div class="flow-row">
-    <div class="flow-node accent-blue wide">Structure-Aware Chunker<small>Beige Book → by district<br>Minutes → by section<br>Speeches → by speaker</small></div>
-  </div>
-  <div class="flow-arrow-down">↓</div>
-  <div class="flow-row">
-    <div class="flow-node accent-blue">Embeddings<small>Ollama qwen3-embedding<br>0.6b · 1024-dim<br>Local · No API keys</small></div>
-    <div style="width: 40px;"></div>
-    <div class="flow-node accent-green">Entity Extractor<small>Regex + Registry<br>No LLM required<br>Deterministic</small></div>
-  </div>
-
-  <div class="flow-arrow-down">↓</div>
-
-  <!-- Dual Retrieval -->
-  <div style="text-align: center; font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px;">Dual Retrieval</div>
-  <div class="flow-row">
-    <div class="flow-node wide accent-gold pulse-node">Query<small>date-bounded</small></div>
-  </div>
-  <div class="flow-arrow-down">▼ ─── splits ─── ▼</div>
-  <div class="flow-row">
-    <div class="flow-node tall accent-blue">Vector Path<small>Qdrant v1.13<br>Semantic similarity<br>Date-bounded search</small></div>
-    <div style="width: 40px;"></div>
-    <div class="flow-node tall accent-purple">Graph Path<small>Neo4j 5 Community<br>Cypher traversal<br>1-2 hop expansion</small></div>
-  </div>
-
-  <div class="flow-arrow-down">▼ ─── merges ─── ▼</div>
-
-  <!-- Result Fusion -->
-  <div style="text-align: center; font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px;">Result Fusion</div>
-  <div class="flow-row">
-    <div class="flow-node wide accent-green">Reciprocal Rank Fusion<small>alpha=0.5 · k=60 · both-sources bonus</small></div>
-  </div>
-  <div class="flow-arrow-down">↓</div>
-  <div class="flow-row">
-    <div class="flow-node accent-red">MMR Diversification<small>λ=0.7 · Remove<br>near-duplicates</small></div>
-  </div>
-  <div class="flow-arrow-down">↓</div>
-  <div class="flow-row">
-    <div class="flow-node accent-blue">FlashRank Reranker<small>ms-marco-MiniLM-L-12-v2<br>ONNX · No PyTorch</small></div>
-  </div>
-  <div class="flow-arrow-down">↓</div>
-  <div class="flow-row">
-    <div class="flow-node accent-gold wide">Ranked Context<small>for LLM Agent</small></div>
-  </div>
-</div>
+<figure>
+    <img src="03/charts/diagram-03-graphrag.png" alt="GraphRAG dual-retrieval architecture — Qdrant vector search + Neo4j knowledge graph merged via Reciprocal Rank Fusion" loading="lazy">
+    <figcaption>GraphRAG dual-retrieval architecture — vector search + knowledge graph, merged via RRF</figcaption>
+</figure>
 
 <p>Financial documents have typed structure that flat vector embedding destroys. A staff economic review, a participants' views section, and a policy action paragraph are semantically different even if they discuss the same indicator. Vector search alone cannot answer multi-hop questions like "which indicators concern districts that reported slowdowns."</p>
 <p>The solution is dual retrieval: every query goes to both Qdrant (vector similarity) and a knowledge graph (entity traversal), with results merged via Reciprocal Rank Fusion. Items appearing in both sources always outscore items from only one. The knowledge graph connects five entity types — speaker, district, indicator, topic, document — through typed edges, enabling 2-hop expansion from any starting node.</p>
