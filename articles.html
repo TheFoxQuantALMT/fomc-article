@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="FOMC Multi-Agent Simulation Platform — a 13-part technical article series on building an AI system that simulates Federal Reserve meetings.">
+<meta property="og:title" content="FOMC Simulation Platform — Article Series">
+<meta property="og:description" content="13-part deep dive into building a multi-agent AI system that simulates FOMC meetings with 19 AI agents, Bayesian inference, and Monte Carlo methods.">
+<meta property="og:type" content="website">
+<title>FOMC Simulation Platform — Article Series</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --border: rgba(201, 168, 76, 0.12);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 80px 24px;
+  }
+
+  h1 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 2.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 48px;
+  }
+
+  .article-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .article-list li {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .article-list a {
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+    padding: 20px 16px;
+    color: var(--text);
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+    border-radius: 4px;
+  }
+
+  .article-list a:hover {
+    background: var(--bg-elevated);
+    color: var(--text-bright);
+  }
+
+  .article-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--gold);
+    min-width: 28px;
+    text-align: right;
+    opacity: 0.7;
+  }
+
+  .article-title {
+    font-size: 1.1rem;
+    line-height: 1.5;
+  }
+
+  .article-list a:hover .article-num {
+    opacity: 1;
+  }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  footer a {
+    color: var(--gold);
+    text-decoration: none;
+  }
+
+  footer a:hover {
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+<script src="auth.js"></script>
+<div class="container">
+  <h1>FOMC Simulation Platform</h1>
+  <p class="subtitle">A 13-part technical article series</p>
+
+  <ol class="article-list">
+    <li><a href="01/article_01.html"><span class="article-num">01</span><span class="article-title">What If You Could Simulate the Fed On Demand?</span></a></li>
+    <li><a href="02/article_02.html"><span class="article-num">02</span><span class="article-title">The Silent Killer of Financial ML (And How I Built a Time-Travel Database to Fix It)</span></a></li>
+    <li><a href="03/article_03.html"><span class="article-num">03</span><span class="article-title">When Vector Search Isn't Enough: GraphRAG for Financial Intelligence</span></a></li>
+    <li><a href="04/article_04.html"><span class="article-num">04</span><span class="article-title">19 AI Agents Walk Into a Federal Reserve Meeting</span></a></li>
+    <li><a href="05/article_05.html"><span class="article-num">05</span><span class="article-title">10,000 Committee Votes Per Second: Monte Carlo Meets Bayesian Inference</span></a></li>
+    <li><a href="06/article_06.html"><span class="article-num">06</span><span class="article-title">96 AI Agents, One GPU: Orchestrating a Synthetic Federal Reserve Beige Book</span></a></li>
+    <li><a href="07/article_07.html"><span class="article-num">07</span><span class="article-title">Three Ways to Build AI Agents (And When to Use Each)</span></a></li>
+    <li><a href="08/article_08.html"><span class="article-num">08</span><span class="article-title">The Most Interesting Part of a Simulation Is Not the Prediction</span></a></li>
+    <li><a href="09/article_09.html"><span class="article-num">09</span><span class="article-title">25 Containers, One Make Command: Infrastructure for AI Systems That Actually Work</span></a></li>
+    <li><a href="10/article_10.html"><span class="article-num">10</span><span class="article-title">Making 80,000 Lines of Backend Code Legible to Humans</span></a></li>
+    <li><a href="11/article_11.html"><span class="article-num">11</span><span class="article-title">Does It Actually Work? Backtesting an AI Fed Against 6 Years of History</span></a></li>
+    <li><a href="12/article_12.html"><span class="article-num">12</span><span class="article-title">Building a Persona Factory: From Speech Data to 19 Distinct AI Personalities</span></a></li>
+    <li><a href="13/article_13.html"><span class="article-num">13</span><span class="article-title">What I Learned Building an 80,000-Line AI Simulation of the Federal Reserve</span></a></li>
+  </ol>
+
+  <footer>
+    <a href="https://github.com/TheFoxQuantALMT/FOMC">github.com/TheFoxQuantALMT/FOMC</a>
+  </footer>
+</div>
+</body>
+</html>
