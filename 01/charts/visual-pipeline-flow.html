@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOMC Simulation Pipeline Flow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #06090f;
+    color: #c8d6e5;
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* ── Grain overlay ── */
+  body::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* ── Canvas for particle connections ── */
+  #particle-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    padding: 60px 40px 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .header h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 3.2rem;
+    font-weight: 400;
+    color: #e8dcc8;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  .header h1 span {
+    color: #c9a84c;
+  }
+
+  .header .subtitle {
+    font-size: 0.75rem;
+    color: #5a7a9a;
+    margin-top: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  /* ── Pipeline container ── */
+  .pipeline {
+    max-width: 1100px;
+    margin: 24px auto;
+    padding: 0 40px 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Vertical spine ── */
+  .spine {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, transparent, #1a2a3a 5%, #1a2a3a 95%, transparent);
+    transform: translateX(-50%);
+  }
+
+  .spine::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 2px;
+    height: 0%;
+    background: linear-gradient(to bottom, #c9a84c, #4a9a6a);
+    transform: translateX(-50%);
+    animation: spine-fill 11s ease-out 0.5s forwards;
+  }
+
+  @keyframes spine-fill {
+    to { height: 100%; }
+  }
+
+  /* ── Phase block ── */
+  .phase {
+    position: relative;
+    margin-bottom: 30px;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  .phase.animate {
+    animation: phase-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes phase-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Phase label ── */
+  .phase-label {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: -14px;
+    z-index: 5;
+  }
+
+  .phase-label span {
+    display: inline-block;
+    background: #06090f;
+    border: 1px solid #c9a84c;
+    color: #c9a84c;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 4px 16px;
+    border-radius: 20px;
+  }
+
+  /* ── Service cards ── */
+  .services {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding-top: 30px;
+    flex-wrap: wrap;
+  }
+
+  .service-card {
+    background: linear-gradient(135deg, #0d1520 0%, #121e2d 100%);
+    border: 1px solid #1a2a3a;
+    border-radius: 12px;
+    padding: 24px 20px;
+    width: 220px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .service-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent, #c9a84c), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+
+  .service-card:hover {
+    border-color: var(--accent, #c9a84c);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(201, 168, 76, 0.05);
+  }
+
+  .service-card:hover::before { opacity: 1; }
+
+  .service-card.active {
+    border-color: var(--accent, #c9a84c);
+    box-shadow: 0 0 30px rgba(201, 168, 76, 0.1);
+  }
+
+  .service-card.active::before { opacity: 1; }
+
+  .card-icon {
+    font-size: 1.6rem;
+    margin-bottom: 10px;
+  }
+
+  .card-name {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: #e8dcc8;
+    margin-bottom: 4px;
+  }
+
+  .card-port {
+    font-size: 0.65rem;
+    color: var(--accent, #5a7a9a);
+    letter-spacing: 0.1em;
+    margin-bottom: 10px;
+  }
+
+  .card-detail {
+    font-size: 0.7rem;
+    color: #5a7a9a;
+    line-height: 1.6;
+  }
+
+  .card-lines {
+    position: absolute;
+    bottom: 12px;
+    right: 16px;
+    font-size: 0.6rem;
+    color: #2a3a4a;
+    font-style: italic;
+  }
+
+  /* ── Pulse dot on active ── */
+  .service-card.active .pulse-dot {
+    display: block;
+  }
+
+  .pulse-dot {
+    display: none;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent, #c9a84c);
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(201, 168, 76, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(201, 168, 76, 0); }
+  }
+
+  /* ── Data flow particles ── */
+  .flow-arrow {
+    text-align: center;
+    padding: 4px 0;
+    position: relative;
+  }
+
+  .flow-arrow .arrow-line {
+    width: 2px;
+    height: 24px;
+    margin: 0 auto;
+    background: linear-gradient(to bottom, #1a2a3a, transparent);
+    position: relative;
+    overflow: visible;
+  }
+
+  .flow-particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #c9a84c;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: flow-down 1.5s ease-in-out infinite;
+    box-shadow: 0 0 10px rgba(201, 168, 76, 0.5);
+  }
+
+  @keyframes flow-down {
+    0% { top: -6px; opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { top: 24px; opacity: 0; }
+  }
+
+  /* ── Dual track split ── */
+  .dual-track {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    padding-top: 30px;
+  }
+
+  .track {
+    flex: 1;
+    max-width: 340px;
+    position: relative;
+  }
+
+  .track-label {
+    text-align: center;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding: 6px 0;
+    border-bottom: 1px solid #1a2a3a;
+  }
+
+  .track.statistical .track-label { color: #4a9aff; }
+  .track.narrative .track-label { color: #ff6b4a; }
+
+  .track.statistical .service-card { --accent: #4a9aff; width: 100%; }
+  .track.narrative .service-card { --accent: #ff6b4a; width: 100%; }
+
+  .track .service-card .card-detail {
+    min-height: 6.5em;
+  }
+
+  /* ── Merge point ── */
+  .merge-point {
+    text-align: center;
+    padding: 20px 0;
+    position: relative;
+  }
+
+  .merge-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 2px solid #c9a84c;
+    background: #0d1520;
+    color: #c9a84c;
+    font-size: 1.4rem;
+    animation: merge-pulse 2s infinite;
+  }
+
+  @keyframes merge-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(201, 168, 76, 0.3); }
+    50% { box-shadow: 0 0 0 12px rgba(201, 168, 76, 0); }
+  }
+
+  /* ── Infrastructure strip ── */
+  .infra-strip {
+    margin-top: 60px;
+    padding: 30px;
+    background: linear-gradient(135deg, #080c14 0%, #0d1520 100%);
+    border: 1px solid #141e2e;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .infra-strip::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #2a3a4a, transparent);
+  }
+
+  .infra-title {
+    font-size: 0.65rem;
+    color: #3a5a6a;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .infra-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .infra-item {
+    background: #0a1018;
+    border: 1px solid #1a2a3a;
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 0.7rem;
+    color: #5a7a9a;
+    transition: all 0.3s;
+    cursor: default;
+  }
+
+  .infra-item:hover {
+    border-color: #3a5a6a;
+    color: #8aaacc;
+    transform: translateY(-2px);
+  }
+
+  .infra-item .infra-icon { margin-right: 6px; }
+
+  /* ── Progress bar ── */
+  .progress-bar {
+    position: sticky;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #c9a84c, #4a9a6a);
+    z-index: 100;
+    width: 0%;
+    transition: width 0.3s;
+  }
+
+  /* ── Status ticker ── */
+  .ticker {
+    position: sticky;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0d1520;
+    border: 1px solid #1a2a3a;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 0.7rem;
+    color: #5a7a9a;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transition: opacity 0.4s;
+    width: fit-content;
+    margin: 0 auto;
+  }
+
+  .ticker.visible { opacity: 1; }
+
+  .ticker .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4a9a6a;
+    animation: pulse 1s infinite;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .header h1 { font-size: 2rem; }
+    .services { flex-direction: column; align-items: center; }
+    .dual-track { flex-direction: column; align-items: center; }
+    .service-card { width: 90%; max-width: 320px; }
+    .track { max-width: 90%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<canvas id="particle-canvas"></canvas>
+
+<div class="header">
+  <h1>FOMC Simulation <span>Pipeline</span></h1>
+  <div class="subtitle">10 services &middot; 25 containers &middot; one command</div>
+</div>
+
+<div class="pipeline">
+  <div class="spine"></div>
+
+  <!-- ═══ Phase 0a: Economy Data Collection ═══ -->
+  <div class="phase" data-phase="0a" data-delay="400">
+    <div class="phase-label"><span>Phase 0a &mdash; Economic Data</span></div>
+    <div class="services">
+      <div class="service-card" style="--accent: #c9a84c;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">📊</div>
+        <div class="card-name">Economy Service</div>
+        <div class="card-port">PORT 9000</div>
+        <div class="card-detail">
+          7 async collectors<br>
+          Point-in-time enforcement<br>
+          FRED &middot; BLS &middot; BEA &middot; CME
+        </div>
+              </div>
+      <div class="service-card" style="--accent: #d4a853;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">📰</div>
+        <div class="card-name">News Collection</div>
+        <div class="card-port">VIA SEARXNG</div>
+        <div class="card-detail">
+          Meta-search aggregation<br>
+          Financial news &amp; sentiment<br>
+          Date-bounded queries
+        </div>
+      </div>
+      <div class="service-card" style="--accent: #d4a853;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">🎤</div>
+        <div class="card-name">Speeches</div>
+        <div class="card-port">VIA FRASER</div>
+        <div class="card-detail">
+          FOMC member speeches<br>
+          Testimony &amp; press conferences<br>
+          Pre-meeting communications
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="flow-arrow phase" data-phase="arrow0a" data-delay="1000">
+    <div class="arrow-line"><div class="flow-particle"></div></div>
+  </div>
+
+  <!-- ═══ RAG & GraphRAG: Knowledge Indexing ═══ -->
+  <div class="phase" data-phase="rag" data-delay="1200">
+    <div class="phase-label"><span>RAG &amp; GraphRAG &mdash; Knowledge Indexing</span></div>
+    <div class="services">
+      <div class="service-card" style="--accent: #6ab0e8;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">🔍</div>
+        <div class="card-name">RAG Pipeline</div>
+        <div class="card-port">QDRANT</div>
+        <div class="card-detail">
+          Vector embeddings<br>
+          Semantic document search<br>
+          Chunked retrieval
+        </div>
+      </div>
+      <div class="service-card" style="--accent: #6ab0e8;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">🕸️</div>
+        <div class="card-name">GraphRAG</div>
+        <div class="card-port">NEO4J</div>
+        <div class="card-detail">
+          Knowledge graph reasoning<br>
+          Entity &amp; relationship extraction<br>
+          Cross-document connections
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="flow-arrow phase" data-phase="arrow-rag" data-delay="1700">
+    <div class="arrow-line"><div class="flow-particle"></div></div>
+  </div>
+
+  <!-- ═══ Phase 0a-HD: Hawk-Dove Classification ═══ -->
+  <div class="phase" data-phase="0a-hd" data-delay="1900">
+    <div class="phase-label"><span>Phase 0a-HD &mdash; Hawk-Dove Classification</span></div>
+    <div class="services">
+      <div class="service-card" style="--accent: #e8a435;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">🦅</div>
+        <div class="card-name">Hawk-Dove Classifier</div>
+        <div class="card-port">PORT 8006</div>
+        <div class="card-detail">
+          Dictionary + ML dual signal<br>
+          Graceful degradation<br>
+          Speech &rarr; hawkish/dovish score
+        </div>
+              </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="flow-arrow phase" data-phase="arrow-member" data-delay="2400">
+    <div class="arrow-line"><div class="flow-particle"></div></div>
+  </div>
+
+  <!-- ═══ Member Service ═══ -->
+  <div class="phase" data-phase="member" data-delay="2600">
+    <div class="phase-label"><span>Member Service &mdash; Persona Registry</span></div>
+    <div class="services">
+      <div class="service-card" style="--accent: #a78bfa;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">👥</div>
+        <div class="card-name">Member Service</div>
+        <div class="card-port">PORT 8007</div>
+        <div class="card-detail">
+          19 FOMC personas<br>
+          Canonical member truth<br>
+          Stance offsets &amp; regional biases<br>
+          Real-world policy anchoring
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="flow-arrow phase" data-phase="arrow0b" data-delay="3000">
+    <div class="arrow-line"><div class="flow-particle"></div></div>
+  </div>
+
+  <!-- ═══ Phase 0b: Beige Book ═══ -->
+  <div class="phase" data-phase="0b" data-delay="3200">
+    <div class="phase-label"><span>Phase 0b &mdash; Beige Book Generation</span></div>
+    <div class="services">
+      <div class="service-card" style="--accent: #c9a84c;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">📋</div>
+        <div class="card-name">Beige Book</div>
+        <div class="card-port">PORT 8001</div>
+        <div class="card-detail">
+          12 districts &times; 4-5 analysts<br>
+          ~40 concurrent LLM calls<br>
+          Fact-check pipeline<br>
+          Uses RAG + GraphRAG indexes
+        </div>
+              </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="flow-arrow phase" data-phase="arrow1" data-delay="3700">
+    <div class="arrow-line"><div class="flow-particle"></div></div>
+  </div>
+
+  <!-- ═══ Phase 1: Belief Formation ═══ -->
+  <div class="phase" data-phase="1" data-delay="3900">
+    <div class="phase-label"><span>Phase 1 &mdash; Belief Formation</span></div>
+    <div class="services">
+      <div class="service-card" style="--accent: #a78bfa; width: 340px;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">🧠</div>
+        <div class="card-name">Belief Formation</div>
+        <div class="card-port">PORT 8002</div>
+        <div class="card-detail">
+          Economy + Hawk-Dove + Beige Book + Members &rarr; Priors<br>
+          19 FOMC personas<br>
+          Qualitative &rarr; Bayesian priors<br>
+          &mu; = current_ffr + stance_offset
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="flow-arrow phase" data-phase="arrow2" data-delay="4500">
+    <div class="arrow-line"><div class="flow-particle"></div></div>
+  </div>
+
+  <!-- ═══ Phase 2: Dual-Track ═══ -->
+  <div class="phase" data-phase="2" data-delay="4700">
+    <div class="phase-label"><span>Phase 2 &mdash; Dual-Track Prediction</span></div>
+    <div class="dual-track">
+      <div class="track statistical">
+        <div class="track-label">Statistical Track</div>
+        <div class="service-card">
+          <div class="pulse-dot"></div>
+          <div class="card-icon">🎲</div>
+          <div class="card-name">Monte Carlo</div>
+          <div class="card-port">PORT 8003</div>
+          <div class="card-detail">
+            10,000 iterations<br>
+            Conjugate Bayesian updating<br>
+            Correlated signals<br>
+            Game-theoretic dissent costs
+          </div>
+        </div>
+      </div>
+      <div class="track narrative">
+        <div class="track-label">Narrative Track</div>
+        <div class="service-card">
+          <div class="pulse-dot"></div>
+          <div class="card-icon">💬</div>
+          <div class="card-name">LLM Deliberation</div>
+          <div class="card-port">PORT 8004</div>
+          <div class="card-detail">
+            5-round structured debate<br>
+            19 agents, natural language<br>
+            Signal extraction pipeline<br>
+            Position shifting &amp; consensus
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Merge -->
+  <div class="merge-point phase" data-phase="merge" data-delay="5700">
+    <div class="merge-icon">⚖</div>
+  </div>
+
+  <!-- ═══ Comparison ═══ -->
+  <div class="phase" data-phase="3" data-delay="6100">
+    <div class="phase-label"><span>Phase 3 &mdash; Comparison &amp; Output</span></div>
+    <div class="services">
+      <div class="service-card" style="--accent: #4a9a6a; width: 280px;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">⚖️</div>
+        <div class="card-name">Comparison</div>
+        <div class="card-port">PORT 8005</div>
+        <div class="card-detail">
+          Pearson correlation<br>
+          Welch's t-test &middot; Cohen's d<br>
+          Brier score &middot; CRPS<br>
+          Calibration analysis
+        </div>
+      </div>
+      <div class="service-card" style="--accent: #4a9a6a; width: 280px;">
+        <div class="pulse-dot"></div>
+        <div class="card-icon">📈</div>
+        <div class="card-name">Dashboard</div>
+        <div class="card-port">PORT 3002</div>
+        <div class="card-detail">
+          React 19 + TypeScript<br>
+          16 pages &middot; 20+ chart types<br>
+          SSE streaming<br>
+          24 custom TanStack hooks
+        </div>
+              </div>
+    </div>
+  </div>
+
+  <!-- ═══ Infrastructure ═══ -->
+  <div class="infra-strip phase" data-phase="infra" data-delay="6900">
+    <div class="infra-title">Infrastructure Layer &mdash; 27 Docker Containers</div>
+    <div class="infra-grid">
+      <div class="infra-item"><span class="infra-icon">🐘</span>PostgreSQL</div>
+      <div class="infra-item"><span class="infra-icon">🔴</span>Redis</div>
+      <div class="infra-item"><span class="infra-icon">🔍</span>Qdrant</div>
+      <div class="infra-item"><span class="infra-icon">🕸️</span>Neo4j</div>
+      <div class="infra-item"><span class="infra-icon">🤖</span>Ollama</div>
+      <div class="infra-item"><span class="infra-icon">🔎</span>SearXNG</div>
+      <div class="infra-item"><span class="infra-icon">📊</span>Prometheus</div>
+      <div class="infra-item"><span class="infra-icon">📉</span>Grafana</div>
+      <div class="infra-item"><span class="infra-icon">📝</span>Loki</div>
+      <div class="infra-item"><span class="infra-icon">🚨</span>AlertManager</div>
+      <div class="infra-item"><span class="infra-icon">🔒</span>nginx + TLS</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Status ticker ═══ -->
+<div class="ticker" id="ticker">
+  <div class="status-dot"></div>
+  <span id="tickerText">Initializing pipeline...</span>
+</div>
+
+<script>
+  // ── Canvas background particles ──
+  const canvas = document.getElementById('particle-canvas');
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = document.documentElement.scrollHeight;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  // Re-measure after animations settle
+  setTimeout(resizeCanvas, 9000);
+
+  class Particle {
+    constructor() {
+      this.x = Math.random() * canvas.width;
+      this.y = Math.random() * canvas.height;
+      this.vx = (Math.random() - 0.5) * 0.3;
+      this.vy = (Math.random() - 0.5) * 0.3;
+      this.radius = Math.random() * 1.5 + 0.5;
+      this.alpha = Math.random() * 0.15 + 0.02;
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+      if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+    }
+    draw() {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(90, 122, 154, ${this.alpha})`;
+      ctx.fill();
+    }
+  }
+
+  for (let i = 0; i < 60; i++) particles.push(new Particle());
+
+  function animateParticles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => { p.update(); p.draw(); });
+
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 120) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(90, 122, 154, ${0.03 * (1 - dist / 120)})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(animateParticles);
+  }
+  animateParticles();
+
+  // ── Phase animation ──
+  const phases = document.querySelectorAll('.phase');
+  const progressBar = document.getElementById('progressBar');
+  const ticker = document.getElementById('ticker');
+  const tickerText = document.getElementById('tickerText');
+
+  const tickerMessages = {
+    '0a': 'Collecting economic data, news, and speeches from 7 sources...',
+    'arrow0a': 'Indexing documents into knowledge stores...',
+    'rag': 'Building vector embeddings (Qdrant) & knowledge graph (Neo4j)...',
+    'arrow-rag': 'Routing speeches to classification...',
+    '0a-hd': 'Classifying speeches as hawkish or dovish...',
+    'arrow-member': 'Loading FOMC member personas...',
+    'member': 'Registering 19 FOMC member profiles and stance offsets...',
+    'arrow0b': 'Generating synthetic Beige Book...',
+    '0b': 'Multi-agent Beige Book — 12 districts, ~40 concurrent LLM calls...',
+    'arrow1': 'Routing all signals to belief formation...',
+    '1': 'Forming Bayesian priors for 19 FOMC members...',
+    'arrow2': 'Dispatching to dual prediction tracks...',
+    '2': 'Running 10,000 MC iterations + 5-round LLM debate...',
+    'merge': 'Merging prediction tracks...',
+    '3': 'Comparing tracks and rendering dashboard...',
+    'infra': 'All systems operational across 25 containers'
+  };
+
+  ticker.classList.add('visible');
+
+  phases.forEach((phase, index) => {
+    const delay = parseInt(phase.dataset.delay) || index * 600;
+    setTimeout(() => {
+      phase.classList.add('animate');
+      const phaseId = phase.dataset.phase;
+      if (tickerMessages[phaseId]) tickerText.textContent = tickerMessages[phaseId];
+
+      // Activate cards in this phase
+      setTimeout(() => {
+        phase.querySelectorAll('.service-card').forEach((card, ci) => {
+          setTimeout(() => card.classList.add('active'), ci * 200);
+        });
+      }, 400);
+
+      // Progress bar
+      const progress = ((index + 1) / phases.length) * 100;
+      progressBar.style.width = progress + '%';
+    }, delay);
+  });
+
+  // Final ticker
+  setTimeout(() => {
+    tickerText.textContent = 'Pipeline complete — prediction: 3.63% (January 28, 2026 FOMC)';
+    document.querySelector('.ticker .status-dot').style.background = '#c9a84c';
+  }, 8500);
+</script>
+
+</body>
+</html>
