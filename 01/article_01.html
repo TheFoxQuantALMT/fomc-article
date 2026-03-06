@@ -54,7 +54,7 @@
 
   /* -- Article container -- */
   .article {
-    max-width: 720px;
+    max-width: 960px;
     margin: 0 auto;
     padding: 60px 24px 120px;
     position: relative;
@@ -247,10 +247,49 @@
   figure {
     margin: 32px 0;
     text-align: center;
+    width: 100vw;
+    max-width: 1100px;
+    margin-left: 50%;
+    transform: translateX(-50%);
   }
 
   figure img {
     margin: 0 auto;
+    cursor: pointer;
+    transition: opacity 0.3s;
+    max-width: 100%;
+  }
+
+  figure img:hover {
+    opacity: 0.85;
+  }
+
+  /* -- Click-to-expand hint on all figure images -- */
+  figure {
+    position: relative;
+  }
+
+  figure::after {
+    content: '⛶  Click to expand';
+    position: absolute;
+    top: 16px;
+    right: 24px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--gold);
+    background: rgba(6, 9, 15, 0.85);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 6px;
+    letter-spacing: 0.08em;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  figure:hover::after {
+    opacity: 1;
   }
 
   .clip-bottom {
@@ -315,7 +354,7 @@
     text-align: center;
     padding-top: 40px;
     margin-top: 60px;
-    max-width: 720px;
+    max-width: 960px;
     margin-left: auto;
     margin-right: auto;
     padding-bottom: 60px;
@@ -444,7 +483,7 @@
   }
 
   .modal-scroll img {
-    width: 180vw;
+    width: 220vw;
     max-width: none;
     height: auto;
     border: 1px solid var(--border);
@@ -453,12 +492,254 @@
     margin: 0 auto;
   }
 
+  /* ── Inline diagram system ── */
+  .diagram {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px;
+    margin: 28px 0;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .diagram-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--gold);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  /* Flow: horizontal row of nodes */
+  .flow-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .flow-node {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-align: center;
+    min-width: 80px;
+    transition: border-color 0.3s, color 0.3s;
+    position: relative;
+  }
+
+  .flow-node:hover {
+    border-color: var(--gold);
+    color: var(--text-bright);
+  }
+
+  .flow-node.accent-gold { border-color: var(--gold); color: var(--gold); }
+  .flow-node.accent-blue { border-color: var(--blue); color: var(--blue); }
+  .flow-node.accent-red { border-color: var(--red); color: var(--red); }
+  .flow-node.accent-green { border-color: var(--green); color: var(--green); }
+  .flow-node.accent-purple { border-color: var(--purple); color: var(--purple); }
+
+  .flow-node small {
+    display: block;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  .flow-node.wide { min-width: 160px; padding: 14px 20px; }
+  .flow-node.tall { padding: 16px 14px; }
+
+  /* Arrows */
+  .flow-arrow-down {
+    text-align: center;
+    color: var(--border);
+    font-size: 1.2rem;
+    margin: 8px 0;
+    opacity: 0.6;
+  }
+
+  .flow-arrow-right {
+    color: var(--border);
+    font-size: 0.9rem;
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+
+  /* Merge funnel */
+  .flow-merge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .flow-merge-line {
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+
+  /* Waterfall / pipeline steps */
+  .waterfall {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .waterfall-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: var(--bg-elevated);
+    border-left: 3px solid var(--border);
+    border-radius: 0 6px 6px 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    transition: border-color 0.3s, color 0.3s;
+    animation: waterfall-in 0.4s ease-out both;
+  }
+
+  .waterfall-step:hover {
+    border-left-color: var(--gold);
+    color: var(--text-bright);
+  }
+
+  .waterfall-step .step-num {
+    color: var(--gold);
+    font-weight: 500;
+    min-width: 18px;
+  }
+
+  @keyframes waterfall-in {
+    from { opacity: 0; transform: translateX(-12px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .waterfall-step:nth-child(1) { animation-delay: 0.1s; }
+  .waterfall-step:nth-child(2) { animation-delay: 0.2s; }
+  .waterfall-step:nth-child(3) { animation-delay: 0.3s; }
+  .waterfall-step:nth-child(4) { animation-delay: 0.4s; }
+  .waterfall-step:nth-child(5) { animation-delay: 0.5s; }
+  .waterfall-step:nth-child(6) { animation-delay: 0.6s; }
+  .waterfall-step:nth-child(7) { animation-delay: 0.7s; }
+  .waterfall-step:nth-child(8) { animation-delay: 0.8s; }
+
+  /* Three-column cards */
+  .card-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .card-col {
+    flex: 1;
+    min-width: 180px;
+    max-width: 220px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  .card-col-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .card-col ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .card-col li {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    line-height: 1.5;
+  }
+
+  /* Animated pulse on diagram nodes */
+  .pulse-node::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+    animation: pulse 1.5s infinite;
+  }
+
+  /* Timeline */
+  .timeline-bar {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    margin: 12px 0;
+    border-radius: 6px;
+    overflow: hidden;
+    height: 36px;
+  }
+
+  .timeline-seg {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--bg);
+    font-weight: 500;
+    min-width: 0;
+  }
+
+  .timeline-labels {
+    display: flex;
+    gap: 2px;
+    margin-top: 6px;
+  }
+
+  .timeline-labels span {
+    flex: 1;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.55rem;
+    color: var(--text-dim);
+  }
+
   /* -- Responsive -- */
   @media (max-width: 768px) {
     .article { padding: 40px 16px 80px; }
     pre { padding: 16px; }
     table { font-size: 0.8rem; }
     thead th, tbody td { padding: 8px 10px; }
+    .card-row { flex-direction: column; align-items: center; }
+    .card-col { max-width: 100%; }
+    .flow-row { gap: 6px; }
+    .flow-node { min-width: 60px; font-size: 0.65rem; padding: 8px 10px; }
   }
 </style>
 </head>
@@ -471,7 +752,7 @@
 
 <figure class="breakout-full">
     <div class="expand-wrap" id="pipeline-expand">
-      <iframe id="pipeline-iframe" src="charts/visual-pipeline-flow.html" frameborder="0" scrolling="no" title="Interactive FOMC simulation pipeline — 10 services activating across 5 phases" loading="eager" style="height: 3800px;"></iframe>
+      <iframe id="pipeline-iframe" src="charts/visual-pipeline-flow.html" frameborder="0" scrolling="no" title="Interactive FOMC simulation pipeline — 10 services activating across 5 phases" loading="eager" style="height: 1900px;"></iframe>
     </div>
     <figcaption>10 services, 25 containers, one <code>make simulate</code> command — interactive pipeline visualization</figcaption>
 </figure>
@@ -538,6 +819,208 @@
 <p><strong>Orchestrator Service</strong> — Coordinates all 10 services through a phased pipeline with health checks, dependency ordering, and structured output.</p>
 <p><strong>Dashboard</strong> — React 19 + TypeScript + TailwindCSS. 16 pages, 20+ chart types, real-time SSE streaming. No Redux — just 24 custom hooks on TanStack Query.</p>
 <hr />
+
+<h2 id="point-in-time-data">Point-in-Time Data: The Foundation Everything Else Depends On</h2>
+
+<div class="diagram">
+  <div class="diagram-title">7 Async Collectors → Economy Service → Snapshot</div>
+  <div class="flow-row">
+    <div class="flow-node accent-gold">FRED<small>130+ series</small></div>
+    <div class="flow-node accent-gold">BLS<small>Employment</small></div>
+    <div class="flow-node accent-gold">BEA<small>GDP / PCE</small></div>
+    <div class="flow-node accent-gold">FRASER<small>Speeches</small></div>
+    <div class="flow-node accent-gold">CME<small>Futures</small></div>
+    <div class="flow-node accent-gold">SearXNG<small>News</small></div>
+    <div class="flow-node accent-gold">Fed Data<small>Historical</small></div>
+  </div>
+  <div class="flow-arrow-down">▼</div>
+  <div class="flow-row">
+    <div class="flow-node wide accent-blue pulse-node">Economy Service<small>port 9000 · point-in-time enforcement</small></div>
+  </div>
+  <div class="flow-arrow-down">↓</div>
+  <div class="diagram-title">RAG Pipeline</div>
+  <div class="flow-row">
+    <div class="flow-node">Chunk<small>by doc type</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node">Embed<small>Ollama local</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node">Extract<small>entities</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-gold">Store<small>Qdrant + Neo4j</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node">Retrieve<small>top_k × factor</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-blue">Rerank<small>FlashRank</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-green">MMR<small>λ = 0.7</small></div>
+  </div>
+  <div class="flow-arrow-down">▼</div>
+  <div class="flow-row">
+    <div class="flow-node wide accent-green">40+ Indicator Snapshot<small>provenance · freshness score · observation date</small></div>
+  </div>
+  <div class="flow-arrow-down">▼</div>
+  <div class="flow-row">
+    <div class="flow-node">Belief Formation</div>
+    <div class="flow-node">Beige Book</div>
+    <div class="flow-node">LLM Deliberation</div>
+    <div class="flow-node">MC Simulation</div>
+  </div>
+</div>
+
+<p>Every major economic indicator gets revised. GDP is revised three times. Nonfarm payrolls are revised for months. If you pull "current" values from FRED, you get revised data — not what existed when decisions were being made. This is look-ahead bias, and it silently corrupts every backtesting result.</p>
+<p>The Economy Service solves this using ALFRED (Archival FRED). The critical method sets <code>realtime_start</code> and <code>realtime_end</code> to the same date, returning data exactly as it existed on that specific day. When the system simulates March 2020, it sees the GDP estimate that was available in March 2020 — not the revised figure published months later.</p>
+
+<figure>
+    <img src="../02/charts/19_vintage_timeline.png" alt="Data vintage timeline showing how economic indicators get revised over time" loading="lazy">
+    <figcaption>Vintage timeline — the same indicator returns different values depending on when you query it</figcaption>
+</figure>
+
+<p>Seven async collectors (FRED, BLS, BEA, FRASER, CME futures, SearXNG news, Fed historical data) feed into a single snapshot endpoint that parallelizes 40+ independent database queries via <code>asyncio.gather</code>. Every value carries provenance: observation date, source, and a freshness score. Downstream services never call external APIs — they call port 9000.</p>
+
+<figure>
+    <img src="../02/charts/dashboard-economy.png" alt="Economy dashboard showing 40+ indicators with point-in-time data" loading="lazy">
+    <figcaption>Economy dashboard — 40+ indicators, each with provenance and freshness scoring</figcaption>
+</figure>
+
+<p>The news pipeline deserves special mention: four channels (Fed speeches, regional bank RSS, SearXNG meta-search, Fed press releases) are merged through deduplication, keyword scoring, and Ollama-powered theme extraction against 16 canonical themes. All date-bounded. No future information leaks in.</p>
+
+<p>After collection, every document enters a 7-stage RAG pipeline: chunk by document type, embed locally via Ollama, extract entities (speakers, districts, indicators), dual-store in Qdrant for vector search and Neo4j for the knowledge graph, retrieve with oversampling (top_k multiplied by a diversity factor), rerank through FlashRank's <code>ms-marco-MiniLM-L-12-v2</code> cross-encoder (runs locally without GPU), then apply Maximal Marginal Relevance filtering at lambda 0.7. The entire chain runs locally — no API calls to external embedding services.</p>
+
+<p>Downstream services never query individual data sources. Instead, they call a single <strong>Context Package</strong> endpoint that bundles the economic snapshot, Beige Book summaries, FOMC documents, Fed speeches, news themes, RAG-retrieved passages, and data edition provenance into one JSON response. One call, one date, everything that date's FOMC would have known.</p>
+
+<p>A background scheduler runs daily at 6 AM for incremental collection and weekly on Sundays at 5 AM for calendar sync. Every data point passes through a <strong>6-dimension quality scorecard</strong> — availability, completeness, freshness, consistency, economic plausibility, and RAG/AI quality — before entering the snapshot. The database behind this is 11 PostgreSQL tables tracking not just the data but its full provenance chain.</p>
+
+<hr />
+
+<h2 id="graphrag">When Vector Search Is Not Enough: GraphRAG</h2>
+
+<figure>
+    <img src="../03/charts/diagram-03-graphrag.png" alt="GraphRAG dual-retrieval architecture — Qdrant vector search + Neo4j knowledge graph merged via Reciprocal Rank Fusion" loading="lazy">
+    <figcaption>GraphRAG dual-retrieval architecture — vector search + knowledge graph, merged via RRF</figcaption>
+</figure>
+
+<p>Financial documents have typed structure that flat vector embedding destroys. A staff economic review, a participants' views section, and a policy action paragraph are semantically different even if they discuss the same indicator. Vector search alone cannot answer multi-hop questions like "which indicators concern districts that reported slowdowns."</p>
+<p>The solution is dual retrieval: every query goes to both Qdrant (vector similarity) and a knowledge graph (entity traversal), with results merged via Reciprocal Rank Fusion. Items appearing in both sources always outscore items from only one. The knowledge graph connects five entity types — speaker, district, indicator, topic, document — through typed edges, enabling 2-hop expansion from any starting node.</p>
+
+<figure>
+    <img src="../03/charts/knowledge-graph-drilldown.gif" alt="Knowledge graph drilldown — exploring entity connections in the Neo4j graph" loading="lazy">
+    <figcaption>Knowledge graph drilldown — entity traversal across speakers, districts, and indicators</figcaption>
+</figure>
+
+<p>A key design choice: entity extraction uses deterministic regex pattern matching against a finite vocabulary (~50 economic indicators, 12 districts, 30 FOMC members) instead of LLM-based NER. It is faster, cheaper, and perfectly reproducible. When your domain vocabulary is well-defined, you do not need a neural network to find "unemployment rate" in a document.</p>
+<p>The chunking strategy varies by document type to preserve semantic boundaries: Beige Books split by district section, FOMC minutes by heading pattern (staff review, participants' views, policy action), and speeches get prefixed with speaker attribution so the embedding carries authorship context. Five entity types — <strong>speaker</strong>, <strong>district</strong>, <strong>indicator</strong>, <strong>topic</strong>, and <strong>document</strong> — form the knowledge graph schema, connected by typed edges that encode relationships like "spoke_about" or "represents_district."</p>
+<p>Embeddings run locally via Ollama (<code>qwen3-embedding:0.6b</code>) with an LRU query cache. Date filtering uses integer timestamps for efficient Qdrant range queries, enforcing the same point-in-time constraint as the structured data pipeline.</p>
+
+<hr />
+
+<h2 id="beige-book">12 Districts, One GPU: The Synthetic Beige Book</h2>
+
+<div class="diagram">
+  <div class="diagram-title">Per-District Pipeline × 12</div>
+  <div class="flow-row">
+    <div class="flow-node accent-gold wide">Intelligence<small>Context API → Economy Service → Direct</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-blue wide">Sector Analysis<small>4 parallel analysts</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node wide">Synthesis<small>merge findings</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-purple wide">Verification<small>cross-check sources</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-green wide">Finalization<small>publishable report</small></div>
+  </div>
+  <div class="flow-arrow-down">↓</div>
+  <div class="flow-row">
+    <div class="flow-node accent-red">HITL Review<small>5 modes × 4 priority levels</small></div>
+    <div class="flow-arrow-right" style="margin: 0 24px;">→</div>
+    <div class="flow-node accent-gold">Compare vs Official BB<small>outlook · shifts · themes</small></div>
+    <div class="flow-arrow-right" style="margin: 0 24px;">→</div>
+    <div class="flow-node accent-blue">Cross-District Heatmap<small>-1 declining → +2 improving</small></div>
+  </div>
+</div>
+
+<p>The full pipeline is five stages. <strong>Intelligence Gathering</strong> pulls context via a priority cascade — Context API first, legacy Economy Service fallback, direct collectors last. Four specialized <strong>Sector Analysts</strong> (consumer spending, manufacturing, labor market, real estate) can run in parallel in granular mode, or collapse into a single batched prompt covering all sectors — parsed back via regex section splitting with automatic fallback to per-sector calls for any sections the batch misses. A <strong>Synthesis</strong> agent weaves sector insights into a coherent district narrative, a <strong>Verification</strong> agent fact-checks claims against source documents using TF-IDF similarity scoring, and a <strong>Finalization</strong> agent produces the publishable district report.</p>
+
+<div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 0; margin: 28px 0; overflow: hidden;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: rgba(13,21,32,0.6);">
+    <span style="font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim);">Transcript Detail</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border);">
+    <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block;"></span>
+    <span style="font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--green);">response</span>
+    <strong style="font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--text-bright);">batched_analyst_new_york</strong>
+    <span style="font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--text-dim);">stage: batched_analysis &middot; district: new_york &middot; mode: batched</span>
+  </div>
+  <div style="padding: 20px; font-family: 'DM Mono', monospace; font-size: 0.72rem; line-height: 1.8; color: var(--text-muted);">
+    <p style="margin-bottom: 14px; color: var(--text-bright);"><strong>Consumer Spending</strong></p>
+    <p style="margin-bottom: 8px;">Consumer spending edged higher in the Second District, driven by sustained demand for high-end goods and services, though discretionary spending showed signs of restraint. Retailers reported modest gains in sales, with electronics and luxury items outperforming staples, while dining and entertainment saw softer performance amid lingering inflation concerns.</p>
+    <p style="margin-bottom: 4px;">Outlook: <span style="color: var(--text-bright);">Stable</span></p>
+    <p style="margin-bottom: 18px;">Confidence: <span style="color: var(--gold);">0.7</span></p>
+
+    <p style="margin-bottom: 14px; color: var(--text-bright);"><strong>Manufacturing</strong></p>
+    <p style="margin-bottom: 8px;">Manufacturing activity expanded at a moderate pace, with firms in the aerospace and pharmaceutical sectors reporting strong order backlogs and production gains. Auto manufacturers noted a pickup in demand for electric vehicles, though supply chain bottlenecks persisted, particularly for semiconductors.</p>
+    <p style="margin-bottom: 4px;">Outlook: <span style="color: var(--green);">Improving</span></p>
+    <p style="margin-bottom: 18px;">Confidence: <span style="color: var(--gold);">0.65</span></p>
+
+    <p style="margin-bottom: 14px; color: var(--text-bright);"><strong>Labor Markets</strong></p>
+    <p style="margin-bottom: 8px;">Labor market conditions remained mixed, with employment gains in professional and technical services offset by rising layoffs in retail and hospitality. Nonfarm payrolls expanded modestly, but the unemployment rate edged higher as hiring slowed in construction and manufacturing.</p>
+    <p style="margin-bottom: 4px;">Outlook: <span style="color: var(--purple);">Mixed</span></p>
+    <p style="margin-bottom: 18px;">Confidence: <span style="color: var(--gold);">0.55</span></p>
+
+    <p style="margin-bottom: 14px; color: var(--text-bright);"><strong>Real Estate and Construction</strong></p>
+    <p style="margin-bottom: 8px;">Residential real estate activity softened amid elevated mortgage rates and limited inventory, though construction spending remained robust. Housing starts hit 1,404 units, supported by strong demand for single-family homes, while commercial real estate faced mixed conditions.</p>
+    <p style="margin-bottom: 4px;">Outlook: <span style="color: var(--text-bright);">Stable</span></p>
+    <p style="margin-bottom: 0;">Confidence: <span style="color: var(--gold);">0.75</span></p>
+  </div>
+</div>
+<figcaption style="font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--text-dim); letter-spacing: 0.15em; text-transform: uppercase; text-align: center; margin-top: -12px; margin-bottom: 24px;">Actual batched analyst output for New York district &mdash; sector-level outlook and confidence scores parsed via regex</figcaption>
+
+<p>Human oversight operates through <strong>5 review modes</strong> — auto (no review), callback (webhook notification), file (write to disk for async review), interactive (terminal prompt), and framework (programmatic integration) — each assignable by priority level from routine data checks to critical policy-adjacent claims. Sessions persist to disk with checkpoint save/load, so a crashed run resumes from the last completed district rather than restarting all twelve.</p>
+
+<p>A 1-ahead prefetch pipeline (<code>asyncio.Queue(maxsize=1)</code>) hides data fetch latency by preparing district N+1's intelligence data while district N runs its LLM inference. After all 12 districts complete, the system fetches the most recent official Beige Book and runs a structured comparison — outlook alignment, shift direction, new or dropped themes — alongside cross-district analysis producing comparison tables (12 districts × 8 sectors), a heatmap scored from declining (−1) to improving (+2), and theme frequency analysis across the full Federal Reserve footprint.</p>
+
+<hr />
+
+<h2 id="persona-factory">From Speeches to Personas: Building 19 Distinct AI Personalities</h2>
+
+<div class="diagram">
+  <div class="diagram-title">Two-Agent Persona Generation Pipeline</div>
+  <div class="flow-row">
+    <div class="flow-node accent-gold">Speech Data</div>
+    <div class="flow-node accent-gold">Voting History</div>
+    <div class="flow-node accent-gold">Public Statements</div>
+  </div>
+  <div class="flow-arrow-down">▼</div>
+  <div class="flow-row">
+    <div class="flow-node wide accent-blue pulse-node">StanceAnalyzer<small>Full DB tool access · quantitative profile</small></div>
+  </div>
+  <div class="flow-arrow-down">▼ summary only — no raw data</div>
+  <div class="flow-row">
+    <div class="flow-node wide accent-purple pulse-node">PersonaGenerator<small>Limited tools · biography · philosophy · style</small></div>
+  </div>
+  <div class="flow-arrow-down">▼</div>
+  <div class="flow-row">
+    <div class="flow-node accent-green">Versioned Persona<small>as_of_date · no in-place updates</small></div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-gold">agents.yaml<small>Git-tracked · reviewable diffs</small></div>
+  </div>
+</div>
+
+<p>Each FOMC member gets a rich persona built from real-world data through a two-agent pipeline. A StanceAnalyzer ingests speech data, voting history, and public statements to produce a quantitative policy profile. A PersonaGenerator then writes a qualitative description — biography, policy philosophy, communication style, regional concerns — that becomes the system prompt for that member's LLM agent.</p>
+<p>The agents are deliberately separated. The StanceAnalyzer has access to raw speech data and database tools. The PersonaGenerator only gets the StanceAnalyzer's summary — not the raw speeches — to prevent it from re-deriving conclusions from source data and to keep its context window focused on narrative generation.</p>
+<p>Every persona generation creates a new versioned row with an <code>as_of_date</code> timestamp. No in-place updates. This means the system can reproduce the exact persona used for any historical backtest. The personas are synced to a git-tracked <code>agents.yaml</code> file via an explicit endpoint, producing reviewable diffs. This decouples simulation execution from member service availability — if the service is down, the YAML file is the fallback.</p>
+
+<p>Behind the two-agent pipeline sits a <strong>6-table PostgreSQL schema</strong>: <code>members</code> (the registry), <code>voting_rotations</code> (annual district rotation schedule with date-aware lookup), <code>agent_personas</code> (versioned by <code>as_of_date</code> so you can reconstruct any historical roster), <code>stance_history</code> (a −1 to +1 time series of hawk-dove positioning), <code>speech_summaries</code> (digests feeding the StanceAnalyzer), and <code>hypothetical_members</code> for what-if scenarios.</p>
+
+<p>The hypothetical scenarios endpoint lets you create fictional committee members — "what if the Board had a labor economist with dovish leanings?" — and run them through the full simulation pipeline. Before any persona changes hit the live <code>agents.yaml</code>, a <strong>dry-run diff preview</strong> shows exactly what would change: new fields, modified stances, dropped attributes. The FOMCAgent dataclass that emerges carries <strong>30+ fields</strong> spanning identity, beliefs, biography, institutional role, and phase-1 output — everything downstream services need to simulate that member's behavior.</p>
+
+<figure>
+    <img src="../12/charts/hawkdove-tour.gif" alt="Hawk-dove spectrum and sentiment timeline — dashboard view of member classifications and speech scoring over time" loading="lazy">
+    <figcaption>Hawk-dove spectrum and FedSpeak sentiment timeline — speech scoring mapped across members and time</figcaption>
+</figure>
+
+
+<hr />
+
 <h2 id="the-dual-track-innovation">The Dual-Track Innovation</h2>
 <p>The system's most distinctive architectural decision is running two fundamentally different prediction approaches in parallel and comparing their outputs.</p>
 <h3 id="the-monte-carlo-track">The Monte Carlo Track</h3>
@@ -546,8 +1029,205 @@
 <h3 id="the-llm-track">The LLM Track</h3>
 <p>Runs a structured 5-round meeting where agents actually argue in natural language. They reference specific data points, challenge each other's logic, and shift positions in response to persuasive arguments.</p>
 <p>This track gives you <strong>narrative reasoning</strong>: why agents disagree, what factors drive the debate, and how consensus forms (or doesn't). You can read a hawk changing their mind after hearing labor market data they initially dismissed.</p>
+
+<p>The five rounds aren't free-form — each has a specific structure and speaker count. The <strong>Chair opens alone</strong> with an economic briefing. Six diverse members (balanced across hawks, doves, governors, presidents) present <strong>initial recommendations</strong>. All eight participants then debate the <strong>employment-inflation tradeoff</strong> in a moderated exchange. The six members with highest disagreement <strong>engage directly</strong>, challenging each other's positions. The Chair closes by summarizing and proposing a final rate.</p>
+
+<p>During debate, agents aren't just generating text — they can <strong>call tools</strong> against the Economy Service mid-argument: fetching a specific FRED indicator, searching the document corpus, or pulling district-specific context. This grounds their reasoning in actual data rather than parametric knowledge. The system supports <strong>scenario presets</strong> — political pressure (which lowers dovish dissent cost), data revisions (modified context simulating surprises) — and runs N independent meetings (default 50) whose results get aggregated after outlier detection (&gt;2 sigma), with confidence scored as 1 minus twice the coefficient of variation.</p>
+
+<div class="diagram">
+  <div class="diagram-title">5-Round Structured Deliberation</div>
+  <div class="flow-row">
+    <div class="flow-node accent-gold tall" style="min-width: 120px;">
+      <strong>1 · Chair Opening</strong>
+      <small>1 speaker<br>Economic briefing<br>Central policy question</small>
+    </div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-blue tall" style="min-width: 120px;">
+      <strong>2 · Recommendations</strong>
+      <small>6 speakers<br>Hawks + doves balanced<br>Governors + presidents</small>
+    </div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-purple tall" style="min-width: 120px;">
+      <strong>3 · Employment vs Inflation</strong>
+      <small>8 speakers<br>Chair-moderated<br>Dual-mandate tradeoff</small>
+    </div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-red tall" style="min-width: 120px;">
+      <strong>4 · Direct Engagement</strong>
+      <small>6 speakers<br>Highest disagreement<br>Challenge prior arguments</small>
+    </div>
+    <div class="flow-arrow-right">→</div>
+    <div class="flow-node accent-gold tall" style="min-width: 120px;">
+      <strong>5 · Chair Summary</strong>
+      <small>1 speaker<br>Synthesize positions<br>Propose final rate</small>
+    </div>
+  </div>
+  <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;">
+    <div class="flow-row">
+      <div class="flow-node" style="min-width: 140px;">Tool Calling<small>get_indicator()<br>search_documents()<br>get_district_context()</small></div>
+      <div style="width: 24px;"></div>
+      <div class="flow-node" style="min-width: 140px;">Belief Update<small>Speakers: JSON signal → Bayesian<br>Non-speakers: 5% social pull</small></div>
+      <div style="width: 24px;"></div>
+      <div class="flow-node" style="min-width: 140px;">Multi-Run Aggregation<small>N=50 meetings · outlier &gt;2σ<br>Confidence = 1 − 2·CV</small></div>
+    </div>
+  </div>
+</div>
+
+<div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 0; margin: 28px 0; overflow: hidden;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: rgba(13,21,32,0.6);">
+    <span style="font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim);">Transcript Detail</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border);">
+    <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block;"></span>
+    <span style="font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--green);">response</span>
+    <strong style="font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--text-bright);">Lorie K. Logan</strong>
+    <span style="font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--text-dim);">stage: employment_inflation · round_type: employment_inflation</span>
+  </div>
+  <div style="padding: 20px; font-family: 'DM Mono', monospace; font-size: 0.72rem; line-height: 1.8; color: var(--text-muted);">
+    <p style="margin-bottom: 12px;"><strong style="color: var(--text-bright);">Lorie K. Logan, President of the Federal Reserve Bank of Dallas</strong></p>
+    <p style="margin-bottom: 12px;"><span style="color: var(--gold);">Current Rate Position: 3.75%</span> (Confidence: 82%, Stance: Slightly Hawkish)</p>
+    <p style="margin-bottom: 16px;">The Dallas region, like much of the U.S., is navigating a complex interplay between inflationary pressures and labor market resilience. As the energy capital of the nation, Dallas's economy is deeply intertwined with the global energy sector, which has been a double-edged sword for inflation and employment. My slightly hawkish stance is rooted in the urgent need to stabilize inflation while ensuring Dallas's labor market remains adaptable to shifting economic conditions.</p>
+    <p style="margin-bottom: 8px; color: var(--text-bright);"><strong>Key Risks and Considerations:</strong></p>
+    <p style="margin-bottom: 12px;">1. <strong style="color: var(--text-bright);">Inflationary Headwinds:</strong> The CPI and Core PCE readings — 326.59% and 127.42% YoY — are unprecedented, driven in part by volatile energy prices. Dallas's energy sector, while a major employer, has faced supply chain disruptions and rising input costs that have pushed inflation higher.</p>
+    <p style="margin-bottom: 12px;">2. <strong style="color: var(--text-bright);">Labor Market Dynamics:</strong> Unemployment in Dallas is rising slightly to 4.30%, signaling a potential cooling in the labor market. The flattening yield curve (0.70%) and declining consumer sentiment (52.90%) further suggest a cautious outlook.</p>
+    <p style="margin-bottom: 16px;">3. <strong style="color: var(--text-bright);">Energy Sector Interdependence:</strong> Dallas's energy sector is both a driver of inflation (via input costs) and a critical employer. A sharp correction in energy prices could alleviate inflation but risk layoffs in energy-dependent industries.</p>
+    <p style="margin-bottom: 12px; color: var(--text-bright);"><strong>My Stance:</strong></p>
+    <p style="margin-bottom: 16px;">The current rate of 3.75% strikes a balance: it provides the necessary tools to anchor inflation without overcorrecting and risking a recession. I advocate for a gradual, data-driven approach.</p>
+    <p style="margin-bottom: 8px; border-top: 1px solid var(--border); padding-top: 12px; color: var(--gold);"><strong>Rate Recommendation: 3.75%</strong> (Confidence: 82%, Stance: Slightly Hawkish)</p>
+    <p style="margin-bottom: 0; color: var(--text-dim);">Uncertainty: 18% (Sigma: 1.20)</p>
+  </div>
+</div>
+<figcaption style="font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--text-dim); letter-spacing: 0.15em; text-transform: uppercase; text-align: center; margin-top: -12px; margin-bottom: 24px;">Actual agent response during Employment vs Inflation round — tool-grounded reasoning with rate signal</figcaption>
+
 <h3 id="why-it-matters">Why It Matters</h3>
 <p>When both tracks agree, confidence is high. When they diverge — like the 38-basis-point gap in the January 2025 simulation — that disagreement itself is informative. The Comparison Service quantifies this with statistical tests: is the divergence significant? What is the effect size? These are not rhetorical questions — they have numerical answers.</p>
+
+<h3 id="inside-the-bayesian-engine">Inside the Bayesian Engine</h3>
+
+<div class="diagram">
+  <div class="diagram-title">Conjugate Normal-Normal Update — Per Agent, Per Iteration</div>
+  <div class="flow-row">
+    <div class="flow-node tall accent-purple">Prior<small>mu · sigma<br>dissent_cost</small></div>
+    <div class="flow-arrow-right">+</div>
+    <div class="flow-node tall accent-blue">Signal<small>correlated noise<br>rho = 0.6</small></div>
+    <div class="flow-arrow-right">=</div>
+    <div class="flow-node tall accent-green">Posterior<small>precision-weighted<br>exact · no MCMC</small></div>
+  </div>
+  <div class="flow-arrow-down">▼ vectorized across (10,000 × 19) matrix</div>
+  <div class="flow-row">
+    <div class="flow-node accent-gold">Consensus Rounds</div>
+  </div>
+  <div style="margin-top: 12px;">
+    <div class="flow-row">
+      <div class="flow-node" style="border-color: var(--green); font-size: 0.65rem;">&lt; 50bp<small>Full pull + variance decay</small></div>
+      <div class="flow-node" style="border-color: var(--gold); font-size: 0.65rem;">50–100bp<small>Half pull</small></div>
+      <div class="flow-node" style="border-color: var(--red); font-size: 0.65rem;">&gt; 100bp<small>No movement</small></div>
+    </div>
+  </div>
+  <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px;">
+    <div class="diagram-title">Signal Generation</div>
+    <div style="text-align: center; font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 16px;">
+      s = <span style="color: var(--text-bright);">(1−w)</span>·μ + <span style="color: var(--gold);">w·anchor</span> + N(0, σ²) <span style="color: var(--text-dim); font-size: 0.65rem; margin-left: 12px;">w=0.4 · anchor = CPI 50% + unemployment 30% + GDP 20%</span>
+    </div>
+    <div class="flow-row">
+      <div class="flow-node accent-blue">Classic<small>Taylor 1993<br>α_π=1.5 α_u=0.5</small></div>
+      <div class="flow-arrow-right">→</div>
+      <div class="flow-node accent-green">Balanced<small>Yellen 2012<br>α_u doubled to 1.0</small></div>
+      <div class="flow-arrow-right">→</div>
+      <div class="flow-node accent-purple">Inertial<small>Smoothed ρ=0.85<br>no 200bp jumps</small></div>
+    </div>
+    <div style="text-align: center; font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--text-dim); margin-top: 8px;">
+      r* fallback: FRED dot plot → NY Fed Laubach-Williams → static 2.5%
+    </div>
+  </div>
+</div>
+
+<p>Each Monte Carlo agent starts as a Gaussian distribution: <code>mu</code> (rate preference) and <code>sigma</code> (confidence), plus a <code>dissent_cost</code> capturing institutional dynamics (Chair = 10.0, Presidents = 2.5). The updating is closed-form conjugate Normal-Normal: precisions (1/variance) simply add, giving an exact posterior without MCMC or numerical optimization. The entire update is one line of arithmetic, vectorized across a <code>(10,000 × 19)</code> matrix.</p>
+<p>Agents do not receive independent information. A common factor model injects correlated signals: <code>eps = sqrt(rho) * z_common + sqrt(1-rho) * z_individual</code>. With <code>rho = 0.6</code>, 60% of signal variance comes from the shared economy, preventing unrealistic scenarios where committee members hold wildly incompatible views of the same data. Consensus uses a three-tier proximity gate: agents within 50bp get full pull with variance decay, 50–100bp get half pull, beyond 100bp they do not budge. This prevents artificial groupthink while allowing realistic convergence.</p>
+
+<p>Each agent's signal isn't pure noise around their prior — it's <strong>economically anchored</strong>. The formula blends the agent's belief (weight 0.6) with a macro anchor built from CPI (50%), unemployment (30%), and GDP (20%). When financial conditions deteriorate — VIX above 25 or an inverted yield curve — the noise term scales up, widening the distribution exactly when real-world uncertainty is highest.</p>
+
+<p>Three <strong>Taylor Rule variants</strong> provide independent rate benchmarks: Classic (Taylor 1993, with the original coefficients), Balanced (Yellen 2012, doubling the unemployment coefficient so the dual mandate gets equal weight), and Inertial (adding rate smoothing at ρ=0.85 so the rule can't recommend a 200-basis-point jump in one meeting). The neutral rate r-star comes from a fallback chain: FRED dot plot data first, then the NY Fed Laubach-Williams estimate, then a static 2.5% if both sources fail.</p>
+
+<p>Rather than running a fixed iteration count, the engine uses <strong>adaptive halting</strong>: 1,000-iteration batches, stopping when the mean stabilizes within 0.5 basis points for 3 consecutive batches. Antithetic variates pair each signal draw with its mirror for variance reduction. After convergence, a Shapley-inspired decomposition attributes each agent's contribution to the final distribution, Sobol sensitivity indices identify which parameters matter most, and KL divergence measures how far each scenario's output drifts from baseline.</p>
+
+
+<figure>
+    <img src="charts/10_mc_agent_beliefs_2026-02-26.png" alt="MC mean beliefs by agent — 10,000 iterations showing hawk-dove spread around 3.75% mean" loading="lazy">
+    <figcaption>MC agent beliefs — February 2026 simulation, 10,000 iterations converging around 3.75% mean</figcaption>
+</figure>
+
+<h3 id="signal-extraction">Signal Extraction: The Hardest Engineering Problem</h3>
+<p>Getting 19 LLM agents to produce structured numerical output — a rate prediction, a confidence level, a vote — is a parsing problem, not a prompting problem. No prompt is reliable enough to guarantee valid JSON from every agent on every turn.</p>
+
+<div class="diagram">
+  <div class="diagram-title">7-Layer Signal Extraction Pipeline</div>
+  <div class="waterfall">
+    <div class="waterfall-step"><span class="step-num">1</span> Strip &lt;think&gt; blocks — remove chain-of-thought wrappers</div>
+    <div class="waterfall-step"><span class="step-num">2</span> Detect &amp; remove markdown code fences</div>
+    <div class="waterfall-step"><span class="step-num">3</span> Attempt JSON.parse()</div>
+    <div class="waterfall-step"><span class="step-num">4</span> Fallback: find last complete {...} block</div>
+    <div class="waterfall-step"><span class="step-num">5</span> Normalize key names (rate → predicted_rate → ...)</div>
+    <div class="waterfall-step"><span class="step-num">6</span> Snap to 25bp grid (Fed's actual increments)</div>
+    <div class="waterfall-step"><span class="step-num">7</span> Clamp to dynamic range around current FFR</div>
+  </div>
+</div>
+
+<p>After each round, speakers emit a JSON signal block — <code>signal_rate</code> and <code>sigma</code> — that gets parsed through this 7-layer extraction waterfall. Non-speakers experience <strong>social influence</strong>: their prior shifts 5% toward the mean speaker position per round (<code>mu += 0.05 × (mean_speaker_mu − mu)</code>). This creates realistic opinion dynamics where quiet members gradually align with the vocal consensus, while speakers who extract valid signals update their beliefs through formal Bayesian updating.</p>
+
+<p>This pipeline runs after every LLM call in every service. It is load-bearing infrastructure.</p>
+
+<h3 id="comparison-layer">The Comparison Layer</h3>
+
+<div class="diagram">
+  <div class="diagram-title">Three Categories of Statistical Analysis</div>
+  <div class="card-row">
+    <div class="card-col">
+      <div class="card-col-title">Rate Metrics</div>
+      <ul>
+        <li>Rate difference</li>
+        <li>Dissent divergence</li>
+        <li>Per-agent Pearson r</li>
+        <li>Agreement classification</li>
+      </ul>
+    </div>
+    <div class="card-col">
+      <div class="card-col-title">Treatment Effects</div>
+      <ul>
+        <li>Cohen's d effect size</li>
+        <li>Welch's t-test</li>
+        <li>10k bootstrap CI</li>
+        <li>Fixed seed reproducibility</li>
+      </ul>
+    </div>
+    <div class="card-col">
+      <div class="card-col-title">Scoring Rules</div>
+      <ul>
+        <li>CRPS (distribution)</li>
+        <li>Log score (most punishing)</li>
+        <li>Brier score (binary)</li>
+        <li>Diebold-Mariano test</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<figure>
+    <img src="../08/charts/15_mc_vs_llm_comparison.png" alt="Monte Carlo vs LLM deliberation comparison — statistical agreement analysis" loading="lazy">
+    <figcaption>MC vs LLM track comparison — rate difference, correlation, and agreement classification</figcaption>
+</figure>
+
+<p>The Comparison Service is deliberately stateless — no database, no cache, no connection pools. Pure functions processing data that arrives with each request. With 10,000 MC iterations, p-values are meaningless — effect size is what matters. The Diebold-Mariano test answers the question "is one track statistically better than the other" using walk-forward expanding windows.</p>
+
+<p>The Comparison Service doesn't just compare means — it fits <strong>parametric distributions</strong> to both tracks' outputs, selecting the best fit via AIC comparison and validating with Kolmogorov-Smirnov tests. Skewness, kurtosis, and mode detection reveal whether the rate distribution is symmetric (normal consensus) or fat-tailed (deep disagreement). A <strong>surprise signal</strong> measures the spread between the model's prediction and market-implied rates — when this gap widens, either the model sees something markets don't, or vice versa.</p>
+
+<p>A <strong>variance decomposition</strong> breaks the total rate uncertainty into four components: how much comes from agents' priors, how much from the signals they received, how much from the consensus-building process, and how much from the final vote mechanism. For multi-scenario runs, an ANOVA with F-statistics and pairwise t-tests quantifies whether different economic assumptions actually produce meaningfully different outcomes or just noise.</p>
+
+<figure>
+    <img src="charts/simulation-results-2026-01-28.png" alt="Simulation results — January 2026 run showing 3.750% combined rate, 7m 53s duration, decision provenance and belief reasoning" loading="lazy">
+    <figcaption>January 2026 simulation — dual-track predictions with decision provenance and per-agent belief reasoning</figcaption>
+</figure>
+
 <hr />
 <h2 id="the-stance-offset-innovation">The Stance-Offset Innovation</h2>
 <p>One early design mistake was hardcoding absolute rate preferences for each agent. Jerome Powell "wants" 5.25%. But that is meaningless when the FFR moves from 0.25% to 5.50% over roughly 16 months (March 2022 to July 2023).</p>
@@ -557,48 +1237,305 @@
 <p>A hawk like Waller has <code>stance_offset = +0.75</code> (always wants meaningfully tighter). A dove like Goolsbee has <code>stance_offset = -0.75</code> (always wants easier conditions). A centrist like Powell has <code>stance_offset = 0.00</code> (anchored to current policy).</p>
 <p>This single change made the system work across any rate environment — from the zero lower bound to the 2022 hiking cycle — without manual recalibration.</p>
 <hr />
+
+<h2 id="agent-framework">Three Patterns for Building AI Agents</h2>
+
+<div class="diagram">
+  <div class="diagram-title">Agent Pattern Comparison</div>
+  <div class="card-row">
+    <div class="card-col">
+      <div class="card-col-title">A — Parallel</div>
+      <ul>
+        <li>Independent agents</li>
+        <li>Semaphore-gated</li>
+        <li>No shared state</li>
+        <li>Belief formation</li>
+        <li>Sector analysts</li>
+      </ul>
+      <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--gold);">ConcurrentBuilder → Belief Formation</div>
+    </div>
+    <div class="card-col">
+      <div class="card-col-title">B — Stateful</div>
+      <ul>
+        <li>Context providers</li>
+        <li>Tool access (@tool)</li>
+        <li>Dynamic history</li>
+        <li>StanceAnalyzer</li>
+        <li>PersonaGenerator</li>
+      </ul>
+      <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--gold);">WorkflowBuilder → Orchestrator Pipeline</div>
+    </div>
+    <div class="card-col">
+      <div class="card-col-title">C — GroupChat</div>
+      <ul>
+        <li>19 agents, shared convo</li>
+        <li>Speaker selector</li>
+        <li>Role rewriting fix</li>
+        <li>FOMC deliberation</li>
+        <li>5-round protocol</li>
+      </ul>
+      <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--gold);">GroupChatBuilder → LLM Deliberation</div>
+    </div>
+  </div>
+</div>
+
+<p>Not every agent in the system is built the same way. Three patterns emerged, each suited to different complexity levels.</p>
+<p><strong>Pattern A: Embarrassingly Parallel Agents.</strong> Independent agents gated by an <code>asyncio.Semaphore</code>. Used for belief formation (19 agents in parallel) and Beige Book sector analysts. No shared state, no communication between agents. The semaphore caps concurrent GPU access.</p>
+<p><strong>Pattern B: Stateful Agents with Context Providers and Tools.</strong> Agents that maintain conversation history, have access to tools (database queries, API calls), and receive dynamically injected context. Context providers rewrite conversation history before each turn, enabling agents to "see" information that arrived after their initial prompt.</p>
+<p><strong>Pattern C: GroupChat for Structured Deliberation.</strong> The most complex pattern — 19 agents in a shared conversation with a custom speaker selector enforcing FOMC meeting protocol. This is where the most insidious bug lived.</p>
+
+<p>All three patterns are built on the <strong>Microsoft Agent Framework</strong>, which provides the composable backbone. <code>ConcurrentBuilder</code> powers belief formation — 19 parallel LLM calls with per-agent context injection via an <code>EconomicContextProvider</code> that injects 17 macro indicators, Beige Book data, and current belief state through the <code>invoking()</code> lifecycle hook. <code>GroupChatBuilder</code> runs the deliberation meeting with a custom <code>FOMCMeetingSpeakerSelector</code> that enforces the per-round speaker rules. <code>WorkflowBuilder</code> strings the full pipeline together in the orchestrator.</p>
+
+<p>The <code>OllamaChatClient</code> wraps Ollama with <code>keep_alive=300</code> to prevent model unloading between turns — critical when 19 agents take turns over 5 rounds and cold-loading a 4GB model between each would be catastrophic. The <code>@ai_function</code> decorator on tool methods automatically generates JSON schema from Python type annotations, so adding a new tool for agents is just writing a typed function.</p>
+
+<h3 id="groupchat-bug">The GroupChat Role-Rewriting Bug</h3>
+<p>When a GroupChat broadcasts Agent A's response to Agent B, the message arrives with the <code>assistant</code> role. Agent B sees it as something <em>it</em> said — and continues that train of thought instead of responding as its own character. Every agent gradually converges on parroting the most recent speaker.</p>
+<p>The fix: a context provider rewrites other agents' <code>assistant</code> messages to <code>user</code> messages with an <code>[author_name]</code> prefix. Simple in retrospect, but the bug is invisible in demos and only manifests in sustained multi-round conversations. Anyone building multi-agent conversation systems will encounter this.</p>
+
+<figure>
+    <img src="../07/charts/supervision-drilldown.gif" alt="Agent supervision drilldown — monitoring multi-agent deliberation in real time" loading="lazy">
+    <figcaption>Agent supervision — monitoring 19 agents across structured deliberation rounds</figcaption>
+</figure>
+
+<hr />
+
+<h2 id="infrastructure">25 Containers, One Make Command</h2>
+
+<div class="diagram">
+  <div class="diagram-title">Container Topology — 3 Tiers</div>
+  <div class="card-row">
+    <div class="card-col">
+      <div class="card-col-title">Application (10)</div>
+      <ul>
+        <li>Economy</li>
+        <li>Beige Book</li>
+        <li>Hawk-Dove</li>
+        <li>Member Service</li>
+        <li>Belief Formation</li>
+        <li>MC Simulation</li>
+        <li>LLM Deliberation</li>
+        <li>Comparison</li>
+        <li>Orchestrator</li>
+        <li>Dashboard</li>
+      </ul>
+    </div>
+    <div class="card-col">
+      <div class="card-col-title">Infrastructure (6)</div>
+      <ul>
+        <li>PostgreSQL</li>
+        <li>Qdrant</li>
+        <li>Neo4j</li>
+        <li>SearXNG</li>
+        <li>nginx + TLS</li>
+        <li>CloudBeaver</li>
+      </ul>
+    </div>
+    <div class="card-col">
+      <div class="card-col-title">Observability (9)</div>
+      <ul>
+        <li>Prometheus</li>
+        <li>AlertManager</li>
+        <li>Grafana</li>
+        <li>Loki</li>
+        <li>Promtail</li>
+        <li>node-exporter</li>
+        <li>cadvisor</li>
+        <li>postgres-exporter</li>
+        <li>nginx-exporter</li>
+      </ul>
+    </div>
+  </div>
+  <div style="margin-top: 20px;">
+    <div class="diagram-title">Pipeline Timing Breakdown</div>
+    <div class="timeline-bar">
+      <div class="timeline-seg" style="flex: 2.9; background: var(--purple);">2.9m</div>
+      <div class="timeline-seg" style="flex: 0.3; background: var(--blue);">1s</div>
+      <div class="timeline-seg" style="flex: 9.5; background: var(--red);">9.5m</div>
+    </div>
+    <div class="timeline-labels">
+      <span style="flex: 2.9;">Belief Formation</span>
+      <span style="flex: 0.3;">MC</span>
+      <span style="flex: 9.5;">LLM Deliberation</span>
+    </div>
+  </div>
+</div>
+
+
+<p>The 25 Docker containers break into three tiers: 10 application services, 6 infrastructure (PostgreSQL, Qdrant, Neo4j, SearXNG, nginx, CloudBeaver), and 9 observability (Prometheus, AlertManager, Grafana, Loki, Promtail, exporters). A single <code>docker-compose.yml</code> with <code>depends_on</code> health check conditions creates an implicit dependency DAG.</p>
+<p>The most impactful infrastructure pattern is <strong>phase locking</strong>. A <code>PhaseLock</code> with double-check after lock acquisition prevents duplicate simulations when concurrent requests arrive for the same meeting date. Without this, two users requesting January 2026 would both trigger a 12-minute GPU-bound pipeline. With it, the second request waits on the first's cached result. The timing breakdown tells the story: 2.9 minutes for belief formation, 1 second for the Monte Carlo track (pure numpy, no LLM), and 9.5 minutes for LLM deliberation. The GPU is the bottleneck, and everything is designed around that constraint.</p>
+<p>Service discovery is deliberately boring: environment variables plus Docker DNS. No Consul, no etcd, no service mesh. Inter-service communication uses singleton <code>httpx.AsyncClient</code> instances with 4-part timeouts and connection limits capped at 2 — matching the semaphore slots for bounded concurrency.</p>
+<p>The 260-line Makefile is the most impactful piece of engineering in the project. <code>make simulate DATE=2026-01-28</code> acquires a JWT token, resolves service endpoints, runs health checks, triggers the phased pipeline, and streams structured output. It is what separates a usable system from a collection of microservices.</p>
+
+<p>The orchestrator delegates each pipeline phase to a dedicated <strong>Executor class</strong> — seven in total: EconomyExecutor (fetches context, resolves FFR, anchors priors), BeigeBookExecutor (checks cache, triggers analysis, polls progress), BeliefFormationExecutor, MCSimulationExecutor, LLMDeliberationExecutor, ComparisonExecutor, and PersistExecutor. Each executor encapsulates retry logic, timeout handling, and result caching independently.</p>
+
+<p>Every service connection is wrapped in a <strong>circuit breaker</strong>: CLOSED (normal) → 5 consecutive failures → OPEN (immediate fail-fast, no network calls) → 60 seconds → HALF-OPEN (allow one probe request) → success → back to CLOSED. This prevents a single crashed service from stalling the entire 12-minute pipeline with cascading timeouts.</p>
+
+<p>State persists in a <strong>hybrid model</strong> — SQLite for metadata and queries, JSON files for full state reproduction. Cache keys are deterministic 16-character signatures derived from date, scenario, FFR, and configs, with atomic writes (temp → fsync → rename) to prevent corruption. For sequential meeting analysis, date-chaining lets each meeting's output become the next meeting's baseline: beliefs carry forward, the combined rate becomes the next <code>current_ffr</code>.</p>
+
+<hr />
+
+<h2 id="dashboard">Making 80,000 Lines of Backend Legible to Humans</h2>
+
+<div class="diagram">
+  <div class="diagram-title">Dashboard Architecture — 16 Pages, 4 Categories</div>
+  <div class="card-row">
+    <div class="card-col">
+      <div class="card-col-title">Core</div>
+      <ul>
+        <li>Simulation</li>
+        <li>Results</li>
+        <li>Beliefs</li>
+        <li>Hawk-Dove</li>
+      </ul>
+    </div>
+    <div class="card-col">
+      <div class="card-col-title">Data</div>
+      <ul>
+        <li>Economy</li>
+        <li>Beige Book</li>
+        <li>Knowledge Graph</li>
+        <li>Explorer</li>
+      </ul>
+    </div>
+    <div class="card-col">
+      <div class="card-col-title">Analysis</div>
+      <ul>
+        <li>Backtest</li>
+        <li>Rate Paths</li>
+        <li>Regional</li>
+        <li>Deep Dive</li>
+      </ul>
+    </div>
+    <div class="card-col">
+      <div class="card-col-title">Operations</div>
+      <ul>
+        <li>Admin</li>
+        <li>Calendar</li>
+        <li>History</li>
+        <li>Methodology</li>
+      </ul>
+    </div>
+  </div>
+  <div style="margin-top: 16px;">
+    <div class="flow-row">
+      <div class="flow-node accent-blue">24 Custom Hooks<small>TanStack Query</small></div>
+      <div class="flow-arrow-right">→</div>
+      <div class="flow-node accent-gold">SSE Streaming<small>startTransition</small></div>
+      <div class="flow-arrow-right">→</div>
+      <div class="flow-node accent-green">Recharts + Nivo + Sigma.js<small>20+ chart types</small></div>
+    </div>
+  </div>
+</div>
+
+<p>The dashboard spans 16 pages across four categories: core simulation views (results, beliefs, hawk-dove classifications), data views (economy, Beige Book, knowledge graph explorer), analysis views (backtesting, rate paths, regional breakdowns), and operations (admin, calendar, history, methodology).</p>
+<p>The most consequential architectural decision was <strong>no state management library</strong>. TanStack Query replaces Redux entirely. 24 custom hooks with <code>staleTime</code> and <code>enabled</code> gating handle all server-derived state. Each hook is independently testable and composable. For a dashboard where every piece of state originates from an API response, a dedicated cache layer is exactly the right abstraction — not a global store.</p>
+<p>Real-time progress streaming uses Server-Sent Events with React 19's <code>startTransition</code> for non-blocking state updates. SSE beats WebSockets for this use case: the data flow is unidirectional (server to client), reconnection is automatic, and there is no need for bidirectional message framing overhead. During a 12-minute simulation, the dashboard shows phase-by-phase progress — which service is active, how many LLM calls are pending, what the current intermediate results look like.</p>
+
+<p>The dashboard avoids CORS entirely through an <strong>Nginx reverse proxy</strong> that routes by path prefix: <code>/economy/</code> to the Economy Service, <code>/api/</code> to the Orchestrator, <code>/beige-book/</code> to the Beige Book service. The React app makes same-origin requests; Nginx handles the fan-out. This eliminated an entire class of authentication and preflight bugs.</p>
+
+<p>Three visualization components deserve mention: an <strong>SVG-based choropleth</strong> colors Fed districts by unemployment z-score (inverted, so low unemployment reads green), an <strong>economic calendar</strong> renders a month grid with impact-colored dots (red for high-impact releases, amber for medium, grey for low) alongside a filterable event list, and the <strong>knowledge graph</strong> offers both force-directed and hierarchy views of the entity relationships extracted by the RAG pipeline. Date selectors throughout the app restrict to actual FOMC meeting dates — no free-form date pickers that would let you simulate a non-existent meeting.</p>
+
+<figure>
+    <img src="../10/charts/dashboard-tour.gif" alt="Dashboard tour — navigating 16 pages of simulation results and analysis" loading="lazy">
+    <figcaption>Dashboard tour — 16 pages, 20+ chart types, real-time SSE streaming</figcaption>
+</figure>
+
+<hr />
+
+<h2 id="backtesting">Does It Actually Work? Six Years of History</h2>
+
+<div class="diagram">
+  <div class="diagram-title">48 FOMC Meetings — January 2020 to January 2026</div>
+  <div class="timeline-bar">
+    <div class="timeline-seg" style="flex: 2; background: var(--red);">COVID</div>
+    <div class="timeline-seg" style="flex: 4; background: var(--text-dim);">ZLB</div>
+    <div class="timeline-seg" style="flex: 5; background: var(--red);">Hiking</div>
+    <div class="timeline-seg" style="flex: 2; background: var(--green);">Easing</div>
+    <div class="timeline-seg" style="flex: 2; background: var(--blue);">Hold</div>
+  </div>
+  <div class="timeline-labels">
+    <span style="flex: 2;">Mar 2020</span>
+    <span style="flex: 4;">2020–2022</span>
+    <span style="flex: 5;">2022–2023</span>
+    <span style="flex: 2;">Late 2024</span>
+    <span style="flex: 2;">2025</span>
+  </div>
+  <div style="margin-top: 20px;">
+    <div class="card-row">
+      <div class="card-col">
+        <div class="card-col-title">Monte Carlo</div>
+        <ul>
+          <li>~18bp MAE</li>
+          <li>~65% exact match</li>
+          <li>~88% within 1 move</li>
+        </ul>
+      </div>
+      <div class="card-col">
+        <div class="card-col-title">LLM Deliberation</div>
+        <ul>
+          <li>~15bp MAE</li>
+          <li>~70% exact match</li>
+          <li>~90% within 1 move</li>
+        </ul>
+      </div>
+      <div class="card-col">
+        <div class="card-col-title">Both Agree (70%)</div>
+        <ul>
+          <li>82% correct</li>
+          <li>When disagree:</li>
+          <li>LLM 60% vs MC 40%</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p>The backtest covers 48 FOMC meetings from January 2020 through January 2026 — a period that includes the emergency COVID cuts (150bp across two unscheduled meetings), 18 months at the zero lower bound, a 425bp hiking cycle with four consecutive 75bp moves, 100bp of easing in late 2024, and an extended hold through 2025.</p>
+<p>The Monte Carlo track achieved approximately 18bp mean absolute error with 65% exact-match accuracy. The LLM deliberation track performed slightly better: around 15bp MAE and 70% exact match. When both tracks agreed (roughly 70% of meetings), they were correct 82% of the time. When they disagreed, the LLM track was correct about 60% versus 40% for Monte Carlo.</p>
+<p>The system breaks in predictable ways. March 2020's emergency inter-meeting cuts were unpredictable from economic indicators — no simulation could have seen that coming. The June–November 2022 run of 75bp hikes caught the MC track slow to recognize the regime change. The September 2024 first cut stumped both tracks: they predicted 25bp, the actual was 50bp — though both had 50bp within their credible intervals.</p>
+
+<figure>
+    <img src="../11/charts/16_rate_trajectory.png" alt="Federal funds rate trajectory — actual vs predicted across 48 FOMC meetings" loading="lazy">
+    <figcaption>Rate trajectory — predicted vs actual across 6 years of FOMC decisions</figcaption>
+</figure>
+
+<figure>
+    <img src="../11/charts/17_backtest_accuracy.png" alt="Backtest accuracy — directional accuracy and MAE across regime changes" loading="lazy">
+    <figcaption>Backtest accuracy — performance across COVID, hiking cycle, easing, and hold regimes</figcaption>
+</figure>
+
+<p>For multi-scenario validation, the Comparison Service runs an <strong>ANOVA with F-statistics</strong> across scenario variants and pairwise t-tests to determine whether different economic assumptions (baseline, political pressure, data revision) produce statistically distinguishable outcomes. This matters because if your scenarios all converge to the same rate, your scenario modeling is theater — the system needs to verify that varying inputs actually varies outputs.</p>
+
+<p><strong>The honest limitation:</strong> the LLM track's apparent superiority could be substantially attributable to data leakage. The language model was trained through mid-2025, overlapping with the backtest period. It may be "predicting" outcomes it has already seen in its training data rather than reasoning from the economic context. This cannot be fully disentangled without a model trained on a strictly pre-period corpus. The project is a research tool, not a trading signal. Its value is in the reasoning traces, not the point estimates.</p>
+
+<hr />
+
+<h2 id="shared-foundation">The Shared Foundation</h2>
+
+<p>Beneath the 10 services sits <code>fomc-common</code> — a shared library that prevents each service from reinventing the same wheels. Four components do most of the work.</p>
+
+<p><strong>SafeProgressDict</strong> provides thread-safe progress tracking with TTL-based cleanup — every long-running operation (Beige Book generation, LLM deliberation) reports status through it, and stale entries auto-expire rather than leaking memory. The <strong>LLM Backend abstraction</strong> wraps three implementations behind one interface: OllamaBackend for local inference, VLLMBackend for continuous batching, and CloudAPIBackend for burst capacity. A factory function resolves which backend to use at startup, so switching from Ollama to vLLM is a one-line environment variable change.</p>
+
+<p>The <strong>Membership module</strong> encodes the complex FOMC rotation rules — which regional presidents vote in which years, who sits on the Board of Governors on any given date — into date-aware lookup functions that return accurate rosters for any historical or future meeting. <strong>Agent Cards sync</strong> manages the <code>agents.yaml</code> file idempotently: it merges updates from the Member Service while preserving hand-curated fields like narrative bios, producing a diff preview before writing anything. These four components are invisible in the architecture diagram but load-bearing — remove any one and multiple services break.</p>
+
+<hr />
 <h2 id="what-i-learned-building-this">What I Learned Building This</h2>
-<p><strong>Multi-agent systems need guardrails, not just prompts.</strong> LLMs are unpredictable. An agent might return a rate of 15% or refuse to provide a number. I built a layered signal extraction pipeline with JSON parsing, multiple regex fallbacks, range validation, and graceful degradation. The guardrails run after every LLM call in every service. They are load-bearing infrastructure.</p>
-<p><strong>Agents need shared context, not just shared prompts.</strong> Early versions had each agent reasoning in isolation. The breakthrough was building a group chat architecture where agents see each other's arguments and a GraphRAG knowledge base where meeting context, economic analysis, and prior deliberations are embedded and retrievable. Agents that can reference what another agent said two rounds ago — and cross-check it against source documents in the knowledge graph — produce qualitatively different debates than agents working from the same static prompt.</p>
-<p><strong>Determinism is a spectrum, not a boolean.</strong> LLMs are inherently non-deterministic — the same prompt produces different outputs across runs. In a system that needs reproducible analysis, you cannot fight this; you have to design around it. The Monte Carlo track embraces randomness structurally: run 10,000 iterations and let the distribution speak. The LLM track uses structured extraction pipelines to convert free-text reasoning into constrained numerical outputs, temperature controls, and seed pinning where supported. The Comparison Service then quantifies run-to-run variance. The lesson: do not try to make LLMs deterministic — instead, build the infrastructure to measure and bound their uncertainty.</p>
-<p><strong>Two tracks beat one.</strong> Monte Carlo gives you statistical rigor. LLM deliberation gives you narrative reasoning. Neither alone tells the full story. The comparison service exists precisely because the interesting insight is in the gap between them.</p>
-<p><strong>Point-in-time data is non-negotiable.</strong> Financial ML systems that train on revised data are lying to themselves. The Economy Service only surfaces indicators available on the as-of date, with full provenance tracking. This is the difference between "our model predicted 2020 correctly" and "our model predicted 2020 correctly using data that existed in 2023."</p>
+<p><strong>Structured output extraction matters more than prompt engineering.</strong> I spent weeks refining agent prompts. The 10x improvement came from building a robust signal extraction pipeline — JSON parsing, regex fallbacks, grid snapping, range clamping — that runs after every LLM call. The prompt gets you 80% of the way; the extraction pipeline handles the other 20% that breaks everything.</p>
+<p><strong>Concurrency must match hardware.</strong> 96 parallel LLM calls on a single GPU is not faster than 12 sequential calls — it is 3x slower. The semaphore count should match GPU throughput, not the number of logical tasks. This applies to any resource-constrained inference pipeline.</p>
+<p><strong>Graceful degradation is non-negotiable.</strong> Every service has a fallback path. If the LLM is down, hawk-dove classification degrades to dictionary-only. If a Beige Book sector analysis fails, the synthesizer works with available sectors. If persona generation produces invalid JSON, the system falls back to the git-tracked YAML. No single failure crashes the pipeline.</p>
+<p><strong>Context providers are the most underrated pattern.</strong> The ability to dynamically rewrite an agent's conversation history before each turn — injecting new information, reformatting other agents' messages, filtering irrelevant context — is more powerful than any prompt engineering technique. The GroupChat role-rewriting fix is one example; the belief formation service's economic data injection is another.</p>
+<p><strong>Two tracks beat one.</strong> Monte Carlo gives statistical rigor. LLM deliberation gives narrative reasoning. Neither alone tells the full story. The comparison service exists because the interesting insight is in the gap between them.</p>
+<p><strong>Point-in-time data is non-negotiable.</strong> Financial systems that train on revised data are lying to themselves. The Economy Service only surfaces indicators available on the as-of date, with full provenance tracking. This is the difference between "our model predicted 2020 correctly" and "our model predicted 2020 correctly using data that existed in 2023."</p>
 <p><strong>The boring infrastructure matters most.</strong> The most impactful engineering was not the Bayesian math or the LLM prompts — it was the Makefile. Having <code>make simulate DATE=2026-01-28</code> work end-to-end, with health checks, dependency ordering, and structured output, is what makes the system usable rather than a demo.</p>
+<p><strong>Retrospective: fewer, larger services.</strong> Ten microservices was arguably three too many. The hawk-dove classifier, member service, and belief formation service could be a single "agent preparation" service. The operational overhead of health checks, inter-service auth, and Docker networking for each service adds up. I would not do it differently — the separation forced clean interfaces — but for a solo project, the marginal cost of each additional service is higher than it appears.</p>
+
 <hr />
-<h2 id="results">Results</h2>
-<p>Across backtesting on 48 FOMC meetings from January 2020 through January 2026:</p>
-<ul>
-<li>The system correctly predicts the <strong>direction</strong> of rate decisions (hold/hike/cut) the majority of the time</li>
-<li>Mean absolute error hovers around 15-30 basis points on the rate level</li>
-<li>The system handled extreme events — the emergency COVID cuts in March 2020 and the aggressive 75bp hikes in 2022 — with degraded but non-catastrophic performance</li>
-<li>Calibration is imperfect but informative: when the system is confident, it tends to be right</li>
-</ul>
-<p>(Note: the LLM deliberation track's training data may overlap the backtest period depending on model choice — see the backtesting article later in this series for a full discussion of this limitation.)</p>
-<p>This is a research tool, not a trading signal. Its value is in the reasoning traces, not the point estimates.</p>
-<hr />
-<h2 id="what-is-coming-next">What Is Coming Next</h2>
-<p>This series will dive deep into each component:</p>
-<ol>
-<li><strong>Next week: Point-in-time data engineering</strong> — how I built a time-travel economic database with 7 async collectors and full provenance tracking</li>
-<li><strong>GraphRAG</strong> — combining Qdrant vector search with Neo4j knowledge graphs for financial document reasoning</li>
-<li><strong>Multi-agent LLM meetings</strong> — orchestrating 19 agents through structured 5-round deliberation</li>
-<li><strong>Bayesian Monte Carlo</strong> — the conjugate prior math behind 10,000-iteration policy simulations</li>
-<li><strong>Infrastructure</strong> — running 25 containers with one <code>make</code> command</li>
-<li><strong>The dashboard</strong> — building 16 pages and 20+ chart types in React 19</li>
-<li><strong>Backtesting</strong> — does any of this actually work? Statistical validation against 6 years of FOMC history</li>
-</ol>
-<p>Each article will include architecture decisions, code snippets, and the mistakes I made along the way.</p>
+
+<h2 id="the-real-point">The Real Point</h2>
+<p>This project does not aim to replicate the personalities of FOMC members. Today's language models can approximate stated positions and reasoning patterns, but not the deeper cognitive substrate of a policymaker — shaped by the economic regimes they lived and worked through, their education, and all the factors that ultimately influence their judgment. The same holds for human interactions: compassion, power dynamics, implicit alliances — dynamics that are not only difficult to model but impossible to validate, since the ground truth is private and unobservable. While I believe some of these elements may eventually be approximated, I hope that by then society will have made deliberate, conscious choices about the implications of such capabilities.</p>
+<p>That said, this project — with all its current limitations — allowed me to explore the potential interactions and arguments each member brings to the table based on their objectives, their district's conditions (or lack thereof for governors), and their hawkish or dovish tendencies. It surfaces the reasoning behind their decisions and how external shocks — political pressure, revisions to key economic figures — might shift those positions.</p>
+<p>I see this as a complementary exercise to the standard stress-testing toolkit: parallel and gradual rate shock scenarios applied, for example, in ALMT stress exercises. Where those approaches test the mechanical transmission of rate changes, this platform tests the <em>reasoning</em> that produces them. It is a research tool, not a trading signal — the value is in the deliberation traces, not the point estimates.</p>
 <p>— Vincent</p>
-<hr />
-
-    <section class="charts">
-
-        <figure class="clip-bottom">
-            <img src="charts/d3-architecture.gif" alt="D3 force-directed system architecture graph showing 10 services and infrastructure" loading="lazy">
-            <figcaption>Force-directed architecture graph — services and infrastructure (click to <a href="charts/visual-d3-pipeline.html">view interactive version</a>)</figcaption>
-        </figure>
-
-    </section>
     
 </article>
 
@@ -640,6 +1577,43 @@
 
   setupModal('pipeline-expand', 'pipelineModal', 'modalClose');
   setupModal('arch-expand', 'archModal', 'archModalClose');
+
+  // Universal click-to-expand for all figure images
+  (function() {
+    var modalEl = document.createElement('div');
+    modalEl.className = 'modal-overlay modal-scroll';
+    modalEl.id = 'imgZoomModal';
+    modalEl.innerHTML = '<button type="button" class="modal-close" id="imgZoomClose">ESC × CLOSE</button><img src="" alt="">';
+    document.body.appendChild(modalEl);
+
+    var zoomImg = modalEl.querySelector('img');
+    var closeBtn = document.getElementById('imgZoomClose');
+
+    function openZoom(src, alt) {
+      zoomImg.src = src;
+      zoomImg.alt = alt || '';
+      modalEl.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeZoom() {
+      modalEl.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    closeBtn.addEventListener('click', closeZoom);
+    modalEl.addEventListener('click', function(e) { if (e.target === modalEl) closeZoom(); });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && modalEl.classList.contains('open')) closeZoom();
+    });
+
+    // Attach to all figure > img (skip those already handled by expand-wrap)
+    document.querySelectorAll('figure img').forEach(function(img) {
+      if (img.closest('.expand-wrap')) return;
+      img.addEventListener('click', function() {
+        openZoom(img.src, img.alt);
+      });
+    });
+  })();
 </script>
 
 </body>
