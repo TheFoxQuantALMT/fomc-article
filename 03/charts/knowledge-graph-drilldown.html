@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; overflow: hidden; font-family: 'Inter', -apple-system, sans-serif; }
+  svg { display: block; }
+  .legend { position: absolute; top: 16px; left: 16px; z-index: 10; }
+  .legend-item { display: flex; align-items: center; margin-bottom: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
+  .legend-label { color: #8b949e; font-size: 11px; letter-spacing: 0.3px; }
+  .panel { position: absolute; right: 0; top: 0; width: 230px; height: 100%;
+    background: rgba(22, 27, 34, 0.95); border-left: 1px solid #30363d;
+    padding: 20px 16px; display: none; z-index: 10; overflow-y: auto; }
+  .panel.open { display: block; }
+  .panel-title { color: #e6edf3; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .panel-type { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+  .panel-section { margin-bottom: 14px; }
+  .panel-section-title { color: #8b949e; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .panel-row { display: flex; justify-content: space-between; padding: 3px 0; }
+  .panel-key { color: #8b949e; font-size: 11px; }
+  .panel-val { color: #e6edf3; font-size: 11px; font-weight: 500; }
+  .panel-conn { display: flex; align-items: center; padding: 3px 0; }
+  .panel-conn-dot { width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
+  .panel-conn-label { color: #c9d1d9; font-size: 11px; }
+  .panel-conn-rel { color: #484f58; font-size: 10px; margin-left: auto; font-style: italic; }
+  .panel-chunk-text { color: #a8c0d8; font-size: 10px; line-height: 1.5; padding: 8px 10px;
+    background: rgba(88,166,255,0.06); border-left: 2px solid #58A6FF; border-radius: 2px;
+    margin-top: 8px; font-family: 'Georgia', serif; }
+  .status-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 32px;
+    background: rgba(22, 27, 34, 0.9); border-top: 1px solid #30363d;
+    display: flex; align-items: center; padding: 0 16px; z-index: 10; }
+  .status-text { color: #484f58; font-size: 10px; letter-spacing: 0.3px; }
+  .status-count { color: #58A6FF; font-weight: 600; margin: 0 2px; }
+  .breadcrumb { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px; z-index: 10; white-space: nowrap; }
+  .breadcrumb-step { color: #484f58; font-size: 11px; letter-spacing: 0.3px; }
+  .breadcrumb-step.active { color: #e6edf3; }
+  .breadcrumb-arrow { color: #30363d; font-size: 10px; }
+  .title-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none; z-index: 20; }
+  .title-main { color: #e6edf3; font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .title-sub { color: #6e7681; font-size: 13px; margin-top: 8px; letter-spacing: 0.5px; }
+</style>
+</head>
+<body>
+<svg id="graph"></svg>
+
+<div class="legend" id="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#00D4AA"></div><div class="legend-label">Speakers</div></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#58A6FF"></div><div class="legend-label">Topics</div></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8B949E"></div><div class="legend-label">Indicators</div></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3FB950"></div><div class="legend-label">Districts</div></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FF6B6B"></div><div class="legend-label">Stances</div></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#BC4DFF"></div><div class="legend-label">Committee</div></div>
+  <div class="legend-item" id="legend-chunk" style="display:none;"><div class="legend-dot" style="background:#484F58; border: 1px solid #6e7681;"></div><div class="legend-label">Chunks</div></div>
+</div>
+
+<div class="breadcrumb" id="breadcrumb" style="display:none;">
+  <span class="breadcrumb-step" id="bc-1">Overview</span>
+  <span class="breadcrumb-arrow">›</span>
+  <span class="breadcrumb-step" id="bc-2">Select Node</span>
+  <span class="breadcrumb-arrow">›</span>
+  <span class="breadcrumb-step" id="bc-3">Drill Down</span>
+  <span class="breadcrumb-arrow">›</span>
+  <span class="breadcrumb-step" id="bc-4">Expand</span>
+  <span class="breadcrumb-arrow" id="bc-arrow-5" style="display:none;">›</span>
+  <span class="breadcrumb-step" id="bc-5" style="display:none;">Chunks</span>
+</div>
+
+<div class="panel" id="panel">
+  <div class="panel-type" id="panel-type"></div>
+  <div class="panel-title" id="panel-title"></div>
+  <div class="panel-section">
+    <div class="panel-section-title">Attributes</div>
+    <div id="panel-attrs"></div>
+  </div>
+  <div class="panel-section" id="panel-chunk-section" style="display:none;">
+    <div class="panel-section-title">Source Text</div>
+    <div class="panel-chunk-text" id="panel-chunk-text"></div>
+  </div>
+  <div class="panel-section">
+    <div class="panel-section-title">Connections</div>
+    <div id="panel-conns"></div>
+  </div>
+</div>
+
+<div class="title-overlay" id="title-overlay" style="display:none;">
+  <div class="title-main">FOMC Knowledge Graph</div>
+  <div class="title-sub">Entity relationships across 247 nodes · 892 edges</div>
+</div>
+
+<div class="status-bar">
+  <span class="status-text">
+    <span class="status-count" id="node-count">0</span> nodes ·
+    <span class="status-count" id="edge-count">0</span> edges ·
+    ForceAtlas2 layout
+  </span>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+// Frames: 0=title, 1=overview, 2=powell highlight, 3=zoom powell, 4=stances expand,
+//         5=committee, 6=highlight inflation, 7=chunk expand+zoom, 8=final overview
+const params = new URLSearchParams(window.location.search);
+const FRAME = parseInt(params.get('frame') || '0', 10);
+
+const W = 1000, H = 600;
+const svg = d3.select('#graph').attr('width', W).attr('height', H);
+const defs = svg.append('defs');
+
+// Glow filter
+const glow = defs.append('filter').attr('id', 'glow').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
+glow.append('feGaussianBlur').attr('stdDeviation', '4').attr('result', 'blur');
+const feMerge = glow.append('feMerge');
+feMerge.append('feMergeNode').attr('in', 'blur');
+feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+const colors = {
+  speaker: '#00D4AA', topic: '#58A6FF', indicator: '#8B949E',
+  district: '#3FB950', stance: '#FF6B6B', committee_stance: '#BC4DFF',
+  chunk: '#484F58'
+};
+
+// ═══ GRAPH DATA ═══
+const allNodes = [
+  // Speakers
+  { id: 'sp:Powell', label: 'Jerome Powell', type: 'speaker', degree: 42 },
+  { id: 'sp:Williams', label: 'John Williams', type: 'speaker', degree: 28 },
+  { id: 'sp:Waller', label: 'Christopher Waller', type: 'speaker', degree: 24 },
+  { id: 'sp:Bowman', label: 'Michelle Bowman', type: 'speaker', degree: 20 },
+  { id: 'sp:Jefferson', label: 'Philip Jefferson', type: 'speaker', degree: 18 },
+  { id: 'sp:Barr', label: 'Michael Barr', type: 'speaker', degree: 16 },
+  { id: 'sp:Kugler', label: 'Adriana Kugler', type: 'speaker', degree: 14 },
+  { id: 'sp:Hammack', label: 'Beth Hammack', type: 'speaker', degree: 12 },
+  { id: 'sp:Goolsbee', label: 'Austan Goolsbee', type: 'speaker', degree: 22 },
+  { id: 'sp:Daly', label: 'Mary Daly', type: 'speaker', degree: 19 },
+  // Topics
+  { id: 'tp:inflation', label: 'Inflation', type: 'topic', degree: 38 },
+  { id: 'tp:employment', label: 'Employment', type: 'topic', degree: 32 },
+  { id: 'tp:monetary_policy', label: 'Monetary Policy', type: 'topic', degree: 35 },
+  { id: 'tp:growth', label: 'Economic Growth', type: 'topic', degree: 25 },
+  { id: 'tp:housing', label: 'Housing', type: 'topic', degree: 15 },
+  { id: 'tp:banking', label: 'Banking', type: 'topic', degree: 12 },
+  { id: 'tp:trade', label: 'Trade Policy', type: 'topic', degree: 18 },
+  { id: 'tp:fiscal', label: 'Fiscal Policy', type: 'topic', degree: 14 },
+  // Indicators
+  { id: 'in:CPI', label: 'CPI', type: 'indicator', degree: 20 },
+  { id: 'in:PCE', label: 'PCE', type: 'indicator', degree: 22 },
+  { id: 'in:FFR', label: 'Fed Funds Rate', type: 'indicator', degree: 28 },
+  { id: 'in:GDP', label: 'GDP', type: 'indicator', degree: 18 },
+  { id: 'in:UNR', label: 'Unemployment', type: 'indicator', degree: 16 },
+  { id: 'in:NFP', label: 'Nonfarm Payrolls', type: 'indicator', degree: 14 },
+  { id: 'in:YC', label: 'Yield Curve', type: 'indicator', degree: 10 },
+  // Districts
+  { id: 'dt:NY', label: 'New York', type: 'district', degree: 15 },
+  { id: 'dt:SF', label: 'San Francisco', type: 'district', degree: 12 },
+  { id: 'dt:CHI', label: 'Chicago', type: 'district', degree: 11 },
+  { id: 'dt:CLE', label: 'Cleveland', type: 'district', degree: 9 },
+  { id: 'dt:Board', label: 'Board of Governors', type: 'district', degree: 20 },
+  // Stances (frames 4+)
+  { id: 'st:Powell:0320', label: 'Powell 2024-03-20', type: 'stance', degree: 5, phase: 'stance',
+    attrs: { score: '0.62', stance: 'hawkish', trend: 'increasing', volatility: '0.08' } },
+  { id: 'st:Powell:0131', label: 'Powell 2024-01-31', type: 'stance', degree: 4, phase: 'stance',
+    attrs: { score: '0.45', stance: 'neutral', trend: 'stable', volatility: '0.05' } },
+  { id: 'st:Powell:1213', label: 'Powell 2023-12-13', type: 'stance', degree: 4, phase: 'stance',
+    attrs: { score: '0.31', stance: 'dovish', trend: 'decreasing', volatility: '0.12' } },
+  // Committee stance
+  { id: 'cs:0320', label: 'Committee 2024-03-20', type: 'committee_stance', degree: 18, phase: 'stance',
+    attrs: { score: '0.29', stance: 'neutral', dispersion: '0.45', n_members: '19' } },
+  // Chunks (frames 7+) — document fragments linked to Inflation
+  { id: 'ch:speech_01', label: 'Powell Speech §3', type: 'chunk', degree: 3, phase: 'chunk',
+    attrs: { doc_type: 'speech', speaker: 'Powell', date: '2024-03-07', tokens: '312' },
+    chunkText: '"Inflation has eased notably over the past year but remains above our 2 percent longer-run goal. Core PCE prices rose 2.8 percent over the 12 months ending in January..."' },
+  { id: 'ch:minutes_02', label: 'Minutes §14', type: 'chunk', degree: 4, phase: 'chunk',
+    attrs: { doc_type: 'minutes', date: '2024-03-20', tokens: '287' },
+    chunkText: '"Participants observed that inflation had continued to move toward the Committee\'s 2 percent objective but noted the uneven nature of recent progress..."' },
+  { id: 'ch:speech_03', label: 'Waller Speech §1', type: 'chunk', degree: 2, phase: 'chunk',
+    attrs: { doc_type: 'speech', speaker: 'Waller', date: '2024-02-22', tokens: '245' },
+    chunkText: '"The recent CPI data suggest that the last mile of disinflation may be the hardest. We need several more months of favorable data before I would support easing policy..."' },
+  { id: 'ch:beige_04', label: 'Beige Book CLE §5', type: 'chunk', degree: 3, phase: 'chunk',
+    attrs: { doc_type: 'beige_book', district: 'Cleveland', date: '2024-03-06', tokens: '198' },
+    chunkText: '"Firms in the Fourth District reported that input cost pressures had moderated, though selling prices remained elevated in the services sector..."' },
+  { id: 'ch:news_05', label: 'News: CPI Report', type: 'chunk', degree: 2, phase: 'chunk',
+    attrs: { doc_type: 'news', source: 'Reuters', date: '2024-03-12', tokens: '156' },
+    chunkText: '"Consumer prices rose more than expected in February, with the CPI increasing 0.4% month-over-month, raising concerns about the path of disinflation..."' },
+];
+
+const allEdges = [
+  // Speaker → Topic
+  { source: 'sp:Powell', target: 'tp:inflation', rel: 'spoke_about' },
+  { source: 'sp:Powell', target: 'tp:monetary_policy', rel: 'spoke_about' },
+  { source: 'sp:Powell', target: 'tp:employment', rel: 'spoke_about' },
+  { source: 'sp:Powell', target: 'tp:growth', rel: 'spoke_about' },
+  { source: 'sp:Williams', target: 'tp:inflation', rel: 'spoke_about' },
+  { source: 'sp:Williams', target: 'tp:monetary_policy', rel: 'spoke_about' },
+  { source: 'sp:Waller', target: 'tp:inflation', rel: 'spoke_about' },
+  { source: 'sp:Waller', target: 'tp:trade', rel: 'spoke_about' },
+  { source: 'sp:Bowman', target: 'tp:banking', rel: 'spoke_about' },
+  { source: 'sp:Bowman', target: 'tp:housing', rel: 'spoke_about' },
+  { source: 'sp:Jefferson', target: 'tp:monetary_policy', rel: 'spoke_about' },
+  { source: 'sp:Jefferson', target: 'tp:growth', rel: 'spoke_about' },
+  { source: 'sp:Barr', target: 'tp:banking', rel: 'spoke_about' },
+  { source: 'sp:Kugler', target: 'tp:employment', rel: 'spoke_about' },
+  { source: 'sp:Kugler', target: 'tp:trade', rel: 'spoke_about' },
+  { source: 'sp:Hammack', target: 'tp:inflation', rel: 'spoke_about' },
+  { source: 'sp:Hammack', target: 'tp:fiscal', rel: 'spoke_about' },
+  { source: 'sp:Goolsbee', target: 'tp:inflation', rel: 'spoke_about' },
+  { source: 'sp:Goolsbee', target: 'tp:employment', rel: 'spoke_about' },
+  { source: 'sp:Goolsbee', target: 'tp:growth', rel: 'spoke_about' },
+  { source: 'sp:Daly', target: 'tp:employment', rel: 'spoke_about' },
+  { source: 'sp:Daly', target: 'tp:monetary_policy', rel: 'spoke_about' },
+  // Speaker → District
+  { source: 'sp:Powell', target: 'dt:Board', rel: 'represents' },
+  { source: 'sp:Williams', target: 'dt:NY', rel: 'represents' },
+  { source: 'sp:Waller', target: 'dt:Board', rel: 'represents' },
+  { source: 'sp:Bowman', target: 'dt:Board', rel: 'represents' },
+  { source: 'sp:Jefferson', target: 'dt:Board', rel: 'represents' },
+  { source: 'sp:Barr', target: 'dt:Board', rel: 'represents' },
+  { source: 'sp:Kugler', target: 'dt:Board', rel: 'represents' },
+  { source: 'sp:Hammack', target: 'dt:CLE', rel: 'represents' },
+  { source: 'sp:Goolsbee', target: 'dt:CHI', rel: 'represents' },
+  { source: 'sp:Daly', target: 'dt:SF', rel: 'represents' },
+  // Topic → Indicator
+  { source: 'tp:inflation', target: 'in:CPI', rel: 'measured_by' },
+  { source: 'tp:inflation', target: 'in:PCE', rel: 'measured_by' },
+  { source: 'tp:employment', target: 'in:UNR', rel: 'measured_by' },
+  { source: 'tp:employment', target: 'in:NFP', rel: 'measured_by' },
+  { source: 'tp:monetary_policy', target: 'in:FFR', rel: 'measured_by' },
+  { source: 'tp:monetary_policy', target: 'in:YC', rel: 'measured_by' },
+  { source: 'tp:growth', target: 'in:GDP', rel: 'measured_by' },
+  // District → Topic
+  { source: 'dt:NY', target: 'tp:growth', rel: 'reports_on' },
+  { source: 'dt:NY', target: 'tp:housing', rel: 'reports_on' },
+  { source: 'dt:SF', target: 'tp:employment', rel: 'reports_on' },
+  { source: 'dt:CHI', target: 'tp:trade', rel: 'reports_on' },
+  { source: 'dt:CLE', target: 'tp:inflation', rel: 'reports_on' },
+  { source: 'dt:Board', target: 'tp:monetary_policy', rel: 'reports_on' },
+  // Stance edges (phase: stance)
+  { source: 'sp:Powell', target: 'st:Powell:0320', rel: 'classified_as', phase: 'stance' },
+  { source: 'sp:Powell', target: 'st:Powell:0131', rel: 'classified_as', phase: 'stance' },
+  { source: 'sp:Powell', target: 'st:Powell:1213', rel: 'classified_as', phase: 'stance' },
+  { source: 'st:Powell:0320', target: 'cs:0320', rel: 'contributes_to', phase: 'stance' },
+  { source: 'st:Powell:0131', target: 'cs:0320', rel: 'contributes_to', phase: 'stance' },
+  { source: 'st:Powell:1213', target: 'cs:0320', rel: 'contributes_to', phase: 'stance' },
+  { source: 'st:Powell:0320', target: 'tp:inflation', rel: 'reflects_topic', phase: 'stance' },
+  { source: 'st:Powell:0131', target: 'tp:employment', rel: 'reflects_topic', phase: 'stance' },
+  // Chunk edges (phase: chunk) — chunks connect to Inflation and to their speakers/districts
+  { source: 'ch:speech_01', target: 'tp:inflation', rel: 'addressed_in', phase: 'chunk' },
+  { source: 'ch:speech_01', target: 'sp:Powell', rel: 'delivered', phase: 'chunk' },
+  { source: 'ch:speech_01', target: 'in:PCE', rel: 'referenced_in', phase: 'chunk' },
+  { source: 'ch:minutes_02', target: 'tp:inflation', rel: 'discussed_in', phase: 'chunk' },
+  { source: 'ch:minutes_02', target: 'tp:monetary_policy', rel: 'discussed_in', phase: 'chunk' },
+  { source: 'ch:speech_03', target: 'tp:inflation', rel: 'addressed_in', phase: 'chunk' },
+  { source: 'ch:speech_03', target: 'sp:Waller', rel: 'delivered', phase: 'chunk' },
+  { source: 'ch:speech_03', target: 'in:CPI', rel: 'referenced_in', phase: 'chunk' },
+  { source: 'ch:beige_04', target: 'tp:inflation', rel: 'observed_in', phase: 'chunk' },
+  { source: 'ch:beige_04', target: 'dt:CLE', rel: 'reported_in', phase: 'chunk' },
+  { source: 'ch:news_05', target: 'tp:inflation', rel: 'covered_by', phase: 'chunk' },
+  { source: 'ch:news_05', target: 'in:CPI', rel: 'referenced_in', phase: 'chunk' },
+];
+
+// ═══ DETERMINE VISIBLE DATA PER FRAME ═══
+const showStances = FRAME >= 4 && FRAME <= 5;
+const showChunks = FRAME >= 7;
+// For frames 6-8 (inflation focus + chunks), include stances in layout but don't highlight them
+const showStancesInLayout = FRAME >= 4;
+
+const nodes = allNodes.filter(n => {
+  if (n.phase === 'stance') return showStancesInLayout;
+  if (n.phase === 'chunk') return showChunks;
+  return true;
+});
+const edgeData = allEdges.filter(e => {
+  if (e.phase === 'stance') return showStancesInLayout;
+  if (e.phase === 'chunk') return showChunks;
+  return true;
+});
+
+// ═══ PRE-COMPUTE STABLE LAYOUT ═══
+const rng = (function(s){return function(){s=(s*9301+49297)%233280;return s/233280;}})(42);
+
+const typeGroups = {};
+nodes.forEach(n => { if (!typeGroups[n.type]) typeGroups[n.type] = []; typeGroups[n.type].push(n); });
+
+const panelOpen = (FRAME >= 2 && FRAME <= 5) || FRAME === 7;
+const cx = W / 2 - (panelOpen ? 50 : 0);
+const cy = H / 2;
+
+const typePositions = {
+  speaker:          { cx: cx - 20, cy: cy - 10, r: 100 },
+  topic:            { cx: cx + 80, cy: cy - 40, r: 90 },
+  indicator:        { cx: cx + 140, cy: cy + 60, r: 70 },
+  district:         { cx: cx - 120, cy: cy + 50, r: 60 },
+  stance:           { cx: cx + 50, cy: cy + 80, r: 50 },
+  committee_stance: { cx: cx + 50, cy: cy + 140, r: 20 },
+  chunk:            { cx: cx + 60, cy: cy - 20, r: 45 },
+};
+
+nodes.forEach(n => {
+  const tp = typePositions[n.type] || { cx: cx, cy: cy, r: 100 };
+  const group = typeGroups[n.type];
+  const idx = group.indexOf(n);
+  const angle = (idx / group.length) * Math.PI * 2 - Math.PI / 2;
+  n.x = tp.cx + Math.cos(angle) * tp.r * (0.7 + rng() * 0.6);
+  n.y = tp.cy + Math.sin(angle) * tp.r * (0.7 + rng() * 0.6);
+});
+
+const simulation = d3.forceSimulation(nodes)
+  .force('link', d3.forceLink(edgeData).id(d => d.id).distance(70).strength(0.3))
+  .force('charge', d3.forceManyBody().strength(-150))
+  .force('center', d3.forceCenter(cx, cy))
+  .force('collision', d3.forceCollide().radius(d => nodeSize(d) + 5))
+  .force('x', d3.forceX(cx).strength(0.04))
+  .force('y', d3.forceY(cy).strength(0.04))
+  .stop();
+
+for (let i = 0; i < 300; i++) simulation.tick();
+
+nodes.forEach(n => {
+  n.x = Math.max(30, Math.min(W - 30, n.x));
+  n.y = Math.max(30, Math.min(H - 50, n.y));
+});
+
+function nodeSize(d) {
+  if (d.type === 'chunk') return Math.max(4, Math.min(10, 3 + Math.sqrt(d.degree)));
+  return Math.max(5, Math.min(22, 3 + Math.sqrt(d.degree) * 2));
+}
+
+// ═══ NODE LOOKUP ═══
+const nodeMap = {};
+nodes.forEach(n => nodeMap[n.id] = n);
+
+edgeData.forEach(e => {
+  if (typeof e.source === 'string') e.source = nodeMap[e.source];
+  if (typeof e.target === 'string') e.target = nodeMap[e.target];
+});
+const validEdges = edgeData.filter(e => e.source && e.target);
+
+// ═══ HIGHLIGHT LOGIC ═══
+const powellId = 'sp:Powell';
+const powell = nodeMap[powellId];
+const committeeId = 'cs:0320';
+const inflationId = 'tp:inflation';
+const inflation = nodeMap[inflationId];
+const focusChunkId = 'ch:speech_01';
+
+function getNeighborIds(targetId) {
+  const ids = new Set([targetId]);
+  validEdges.forEach(e => {
+    if (e.source.id === targetId) ids.add(e.target.id);
+    if (e.target.id === targetId) ids.add(e.source.id);
+  });
+  return ids;
+}
+
+let highlightTarget = null;
+if (FRAME === 2 || FRAME === 3 || FRAME === 4) highlightTarget = powellId;
+else if (FRAME === 5) highlightTarget = committeeId;
+else if (FRAME === 6 || FRAME === 7) highlightTarget = inflationId;
+
+const neighborIds = highlightTarget ? getNeighborIds(highlightTarget) : null;
+const isHighlighted = (id) => neighborIds ? neighborIds.has(id) : true;
+const isFocusNode = (id) => id === highlightTarget;
+// For chunk frame, also highlight the selected chunk
+const isChunkFocus = (id) => FRAME === 7 && id === focusChunkId;
+
+// ═══ ZOOM ═══
+let zoomScale = 1, zoomTarget = null;
+if (FRAME === 3 || FRAME === 4) { zoomScale = 1.6; zoomTarget = powell; }
+else if (FRAME === 7) { zoomScale = 1.5; zoomTarget = inflation; }
+
+const g = svg.append('g');
+if (zoomTarget && zoomScale > 1) {
+  const tx = W / 2 - zoomTarget.x * zoomScale;
+  const ty = H / 2 - zoomTarget.y * zoomScale;
+  g.attr('transform', `translate(${tx},${ty}) scale(${zoomScale})`);
+}
+
+// ═══ RENDER EDGES ═══
+// Determine highlight color per frame context
+const hlColor = (FRAME === 6 || FRAME === 7) ? '#58A6FF' : '#00D4AA';
+
+g.selectAll('line.edge')
+  .data(validEdges)
+  .enter().append('line')
+  .attr('class', 'edge')
+  .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+  .attr('x2', d => d.target.x).attr('y2', d => d.target.y)
+  .attr('stroke', d => {
+    if (!highlightTarget) return '#484F58';
+    const connected = d.source.id === highlightTarget || d.target.id === highlightTarget;
+    // For chunk frame, also highlight chunk's own edges
+    const chunkConn = FRAME === 7 && (d.source.id === focusChunkId || d.target.id === focusChunkId);
+    if (chunkConn) return '#c9a84c';
+    return connected ? hlColor : '#484F58';
+  })
+  .attr('stroke-opacity', d => {
+    if (!highlightTarget) return 0.3;
+    const connected = d.source.id === highlightTarget || d.target.id === highlightTarget;
+    const chunkConn = FRAME === 7 && (d.source.id === focusChunkId || d.target.id === focusChunkId);
+    return (connected || chunkConn) ? 0.7 : 0.04;
+  })
+  .attr('stroke-width', d => {
+    if (!highlightTarget) return 0.8;
+    const connected = d.source.id === highlightTarget || d.target.id === highlightTarget;
+    const chunkConn = FRAME === 7 && (d.source.id === focusChunkId || d.target.id === focusChunkId);
+    return (connected || chunkConn) ? 2 : 0.4;
+  });
+
+// ═══ RENDER NODES ═══
+g.selectAll('circle.node')
+  .data(nodes)
+  .enter().append('circle')
+  .attr('class', 'node')
+  .attr('cx', d => d.x).attr('cy', d => d.y)
+  .attr('r', d => {
+    if (!highlightTarget) return nodeSize(d);
+    if (isChunkFocus(d.id)) return nodeSize(d) * 1.6;
+    return isHighlighted(d.id) ? nodeSize(d) * 1.2 : nodeSize(d) * 0.5;
+  })
+  .attr('fill', d => colors[d.type])
+  .attr('fill-opacity', d => {
+    if (!highlightTarget) return d.type === 'chunk' ? 0.6 : 0.85;
+    if (isChunkFocus(d.id)) return 1;
+    return isHighlighted(d.id) ? 1 : 0.08;
+  })
+  .attr('stroke', d => {
+    if (isChunkFocus(d.id)) return '#c9a84c';
+    if (d.type === 'chunk') return '#6e7681';
+    return colors[d.type];
+  })
+  .attr('stroke-width', d => {
+    if (isChunkFocus(d.id)) return 3;
+    if (isFocusNode(d.id)) return 3;
+    return 1.5;
+  })
+  .attr('stroke-opacity', d => {
+    if (isChunkFocus(d.id)) return 1;
+    if (!highlightTarget) return 0.4;
+    return isHighlighted(d.id) ? 0.8 : 0.05;
+  })
+  .attr('filter', d => (isFocusNode(d.id) || isChunkFocus(d.id)) ? 'url(#glow)' : null);
+
+// ═══ RENDER LABELS ═══
+g.selectAll('text.label')
+  .data(nodes)
+  .enter().append('text')
+  .attr('class', 'label')
+  .attr('x', d => d.x).attr('y', d => d.y - nodeSize(d) - 5)
+  .attr('fill', d => isChunkFocus(d.id) ? '#c9a84c' : '#c9d1d9')
+  .attr('font-size', d => {
+    if (isFocusNode(d.id)) return '12px';
+    if (isChunkFocus(d.id)) return '9px';
+    if (highlightTarget && isHighlighted(d.id)) return '10px';
+    if (d.type === 'chunk') return '7px';
+    return d.degree > 25 ? '10px' : '8px';
+  })
+  .attr('font-family', 'Inter, -apple-system, sans-serif')
+  .attr('text-anchor', 'middle')
+  .attr('opacity', d => {
+    if (!highlightTarget) return d.degree > 10 ? 0.9 : (d.type === 'chunk' ? 0.4 : 0.5);
+    if (isChunkFocus(d.id)) return 1;
+    return isHighlighted(d.id) ? 1 : 0.04;
+  })
+  .text(d => d.label);
+
+// ═══ UI STATE PER FRAME ═══
+const breadcrumb = document.getElementById('breadcrumb');
+const panel = document.getElementById('panel');
+const titleOverlay = document.getElementById('title-overlay');
+
+if (FRAME === 0) {
+  titleOverlay.style.display = 'block';
+}
+
+// Breadcrumb
+if (FRAME >= 1) {
+  breadcrumb.style.display = 'flex';
+  const steps = Math.min(FRAME, 4);
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById('bc-' + i).classList.toggle('active', i <= steps);
+  }
+  // Show chunk breadcrumb for frames 6+
+  if (FRAME >= 6) {
+    document.getElementById('bc-arrow-5').style.display = '';
+    document.getElementById('bc-5').style.display = '';
+    document.getElementById('bc-5').classList.toggle('active', FRAME >= 7);
+    // Also mark all earlier steps active
+    for (let i = 1; i <= 4; i++) {
+      document.getElementById('bc-' + i).classList.add('active');
+    }
+  }
+}
+
+// Legend: show chunk legend item when chunks visible
+if (showChunks || FRAME === 6) {
+  document.getElementById('legend-chunk').style.display = 'flex';
+}
+
+// Panel
+if (FRAME >= 2 && FRAME <= 4) {
+  showPanelFor(nodeMap[powellId]);
+} else if (FRAME === 5) {
+  showPanelFor(nodeMap[committeeId]);
+} else if (FRAME === 6) {
+  showPanelFor(nodeMap[inflationId]);
+} else if (FRAME === 7) {
+  showPanelForChunk(nodeMap[focusChunkId]);
+}
+
+function showPanelFor(node) {
+  if (!node) return;
+  panel.classList.add('open');
+  document.getElementById('panel-title').textContent = node.label;
+  document.getElementById('panel-type').textContent = node.type.replace('_', ' ');
+  document.getElementById('panel-type').style.color = colors[node.type];
+
+  const attrs = document.getElementById('panel-attrs');
+  attrs.innerHTML = '';
+  const meta = node.attrs ? {...node.attrs} : { degree: node.degree, type: node.type };
+  if (node.type === 'speaker' && !node.attrs) {
+    Object.assign(meta, { district: 'Board', role: 'Chair', speeches: '47' });
+  }
+  if (node.type === 'topic') {
+    Object.assign(meta, { mentions: node.degree, chunks: '127', indicators: '2' });
+  }
+  Object.entries(meta).forEach(([k, v]) => {
+    attrs.innerHTML += `<div class="panel-row"><span class="panel-key">${k}</span><span class="panel-val">${v}</span></div>`;
+  });
+
+  const conns = document.getElementById('panel-conns');
+  conns.innerHTML = '';
+  const neighbors = validEdges.filter(e => e.source.id === node.id || e.target.id === node.id);
+  neighbors.slice(0, 8).forEach(e => {
+    const other = e.source.id === node.id ? e.target : e.source;
+    conns.innerHTML += `<div class="panel-conn">
+      <div class="panel-conn-dot" style="background:${colors[other.type]}"></div>
+      <span class="panel-conn-label">${other.label}</span>
+      <span class="panel-conn-rel">${e.rel}</span>
+    </div>`;
+  });
+}
+
+function showPanelForChunk(node) {
+  if (!node) return;
+  panel.classList.add('open');
+  document.getElementById('panel-title').textContent = node.label;
+  document.getElementById('panel-type').textContent = 'RAG chunk';
+  document.getElementById('panel-type').style.color = '#c9a84c';
+
+  const attrs = document.getElementById('panel-attrs');
+  attrs.innerHTML = '';
+  if (node.attrs) {
+    Object.entries(node.attrs).forEach(([k, v]) => {
+      attrs.innerHTML += `<div class="panel-row"><span class="panel-key">${k}</span><span class="panel-val">${v}</span></div>`;
+    });
+  }
+
+  // Show chunk source text
+  if (node.chunkText) {
+    const chunkSection = document.getElementById('panel-chunk-section');
+    chunkSection.style.display = 'block';
+    document.getElementById('panel-chunk-text').textContent = node.chunkText;
+  }
+
+  const conns = document.getElementById('panel-conns');
+  conns.innerHTML = '';
+  const neighbors = validEdges.filter(e => e.source.id === node.id || e.target.id === node.id);
+  neighbors.forEach(e => {
+    const other = e.source.id === node.id ? e.target : e.source;
+    conns.innerHTML += `<div class="panel-conn">
+      <div class="panel-conn-dot" style="background:${colors[other.type]}"></div>
+      <span class="panel-conn-label">${other.label}</span>
+      <span class="panel-conn-rel">${e.rel}</span>
+    </div>`;
+  });
+}
+
+// Status bar
+document.getElementById('node-count').textContent = nodes.length;
+document.getElementById('edge-count').textContent = validEdges.length;
+</script>
+</body>
+</html>

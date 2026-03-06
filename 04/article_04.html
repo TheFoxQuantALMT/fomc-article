@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Multi-agent LLM deliberation with structured 5-round meetings, persona-driven prompting, and robust JSON extraction — simulating how FOMC members debate monetary policy.">
+<meta property="og:title" content="19 AI Agents Walk Into a Federal Reserve Meeting">
+<meta property="og:description" content="Designing multi-agent deliberation with structured rounds, persona-driven prompting, and the reality of extracting numbers from LLMs.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="multi-agent AI, LLM deliberation, FOMC simulation, persona prompting, structured output, monetary policy">
+<title>19 AI Agents Walk Into a Federal Reserve Meeting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="19-ai-agents-walk-into-a-federal-reserve-meeting">19 AI Agents Walk Into a Federal Reserve Meeting</h1>
+<p class="subtitle" role="doc-subtitle">Designing multi-agent deliberation with structured rounds, persona-driven prompting, and the engineering reality of extracting numbers from LLMs that do not want to commit.</p>
+<hr />
+<p>The Federal Open Market Committee has 19 members. They have different educational backgrounds, represent different regional economies, and carry different policy philosophies. Some are hawks who prioritize fighting inflation. Some are doves who worry more about employment. Some shift their views depending on what the data says.</p>
+<p>Now imagine giving each of them an LLM, putting them in a room, and asking them to debate interest rate policy for five rounds until they reach a vote.</p>
+<p>That is the deliberation service. It is the most technically interesting and most fragile piece of the entire platform. Getting 19 LLMs to have a structured policy debate — without degenerating into repetitive platitudes, without losing their individual personas, and while extracting structured numerical signals from unstructured text — turns out to be an engineering problem with no clean solution.</p>
+<hr />
+<h2 id="the-five-round-meeting-structure">The Five-Round Meeting Structure</h2>
+<p>Real FOMC meetings follow a structured protocol. The simulation mirrors it:</p>
+<pre><code class="language-python">MEETING_STRUCTURE = [
+    MeetingRound(CHAIR_OPENING,
+        &quot;Chair delivers economic briefing&quot;,
+        1, &quot;chair_only&quot;, False, &quot;chair_opening&quot;, 800),
+    MeetingRound(POLICY_RECOMMENDATIONS,
+        &quot;Selected members present recommendations&quot;,
+        6, &quot;selected&quot;, False, &quot;policy_recommendation&quot;, 500),
+    MeetingRound(EMPLOYMENT_INFLATION,
+        &quot;Chair-moderated dual-mandate discussion&quot;,
+        8, &quot;all&quot;, True, &quot;employment_inflation&quot;, 400),
+    MeetingRound(DIRECT_ENGAGEMENT,
+        &quot;Members challenge arguments directly&quot;,
+        6, &quot;voluntary&quot;, False, &quot;direct_engagement&quot;, 400),
+    MeetingRound(CHAIR_SUMMARY,
+        &quot;Chair summarizes and proposes rate&quot;,
+        1, &quot;chair_only&quot;, False, &quot;chair_summary&quot;, 600),
+]
+</code></pre>
+<p>Each round specifies how many speakers, how they are selected, whether it is moderated, the prompt template, and a token budget. The total deliberation involves roughly 22 separate LLM calls (1 + 6 + 8 + 6 + 1 across five rounds), each through Ollama running locally. In a recent run, the five rounds completed in 9.5 minutes total -- about 30 seconds per agent statement on average, though the chair's opening and closing rounds run faster (single speaker, more focused prompts) while the all-hands employment-inflation round takes longer (8 speakers generating responses sequentially against the GPU).</p>
+<hr />
+<h2 id="speaker-selection-is-not-random">Speaker Selection Is Not Random</h2>
+<p>Who speaks in each round matters enormously. The speaker selector uses different strategies per round:</p>
+<p><strong>Policy Recommendations (Round 2)</strong>: <code>_select_diverse_subset</code> picks 6 members from across the hawk-dove spectrum. It splits members at the median rate preference, then selects Governors and Presidents from each half — ensuring both institutional types and both policy camps are represented.</p>
+<p><strong>Employment-Inflation (Round 3)</strong>: <code>_order_by_stance_diversity</code> interleaves hawks and doves so the debate alternates perspectives — most dovish, most hawkish, second most dovish, second most hawkish. This prevents echo-chamber dynamics where five doves speak in a row and the hawks just agree.</p>
+<p><strong>Direct Engagement (Round 4)</strong>: <code>_select_by_disagreement</code> picks the 6 members whose views diverge most from the committee median. These are the agents most likely to challenge the emerging consensus.</p>
+<p>Each strategy serves a purpose. Diverse selection prevents groupthink. Interleaved ordering creates productive tension. Disagreement selection surfaces the arguments that matter most.</p>
+<hr />
+<h2 id="persona-driven-prompting">Persona-Driven Prompting</h2>
+<p>Each agent gets a system prompt built from a rich persona:</p>
+<pre><code class="language-python">@dataclass
+class FOMCAgent:
+    name: str
+    role: Literal[&quot;Chair&quot;, &quot;Vice Chair&quot;, &quot;Governor&quot;, &quot;President&quot;]
+    district: Optional[str] = None
+    mu: float = 4.25          # Rate belief (FFR + stance_offset)
+    sigma: float = 0.25       # Uncertainty
+    philosophy: str = &quot;Data-dependent, balanced&quot;
+    concerns: List[str] = field(default_factory=lambda: [&quot;inflation&quot;, &quot;employment&quot;])
+    stance_offset: float = 0.0
+
+    # Rich persona fields (from agents.yaml)
+    tenure: str = &quot;&quot;
+    background: str = &quot;&quot;
+    education: str = &quot;&quot;
+    communication_style: str = &quot;&quot;
+    views: str = &quot;&quot;
+</code></pre>
+<p>The system prompt assembles these into a character sheet, and the economic briefing — the same point-in-time data from the economy service — is injected so agents reason from real numbers.</p>
+<p>The result is that when Neel Kashkari (Minneapolis Fed President, engineer by training, recently hawkish) speaks, his LLM instance has context about his Midwest economy, his direct communication style, and his concerns about inflation expectations. When Austan Goolsbee (Chicago Fed, labor economist, known dove) speaks, his prompt reflects his concerns about employment. Both see the same economic data but interpret it through different lenses.</p>
+<hr />
+<h2 id="signal-extraction-the-hardest-part">Signal Extraction: The Hardest Part</h2>
+<p>Every LLM response must end with a JSON signal:</p>
+<pre><code class="language-json">{&quot;signal_rate&quot;: 4.75, &quot;sigma&quot;: 0.15}
+</code></pre>
+<p>Extracting this from unstructured text is where things get messy. The parser handles multiple failure modes:</p>
+<pre><code class="language-python">def _parse_signal(content, default_sigma):
+    # Strip Qwen3 &lt;think&gt;...&lt;/think&gt; reasoning blocks
+    content = re.sub(r&quot;&lt;think&gt;.*?&lt;/think&gt;&quot;, &quot;&quot;, content, flags=re.DOTALL)
+
+    if &quot;```json&quot; in content:
+        # Extract from markdown code fence
+        start = content.find(&quot;```json&quot;) + 7
+        end = content.find(&quot;```&quot;, start)
+        json_str = content[start:end].strip()
+    elif &quot;{&quot; in content and &quot;}&quot; in content:
+        # Last-brace fallback
+        start = content.rfind(&quot;{&quot;)
+        end = content.rfind(&quot;}&quot;) + 1
+        json_str = content[start:end]
+
+    data = json.loads(json_str, strict=False)
+
+    # Handle multiple key formats
+    if &quot;signal_rate&quot; in data:
+        result[&quot;signal_rate&quot;] = float(data[&quot;signal_rate&quot;])
+    elif &quot;recommended_rate&quot; in data:
+        result[&quot;signal_rate&quot;] = float(data[&quot;recommended_rate&quot;])
+</code></pre>
+<p>Three things are happening here:</p>
+<p><strong>Qwen3 think blocks.</strong> The Qwen3 model family emits <code>&lt;think&gt;...&lt;/think&gt;</code> blocks with chain-of-thought reasoning that can contain incomplete JSON and stray braces. Stripping them before extraction is mandatory.</p>
+<p><strong>Multiple JSON formats.</strong> Despite clear instructions, models will output <code>recommended_rate</code> instead of <code>signal_rate</code>, wrap JSON in markdown fences, or express confidence as a percentage instead of sigma.</p>
+<p><strong>Last-brace fallback.</strong> If no code fence is found, the parser takes the last <code>{...}</code> in the response. This handles cases where the model mentions JSON earlier but puts the actual signal at the end.</p>
+<p>After extraction, two guardrails run:</p>
+<pre><code class="language-python">rate = snap_to_25bp_grid(parsed[&quot;signal_rate&quot;])
+rate = clamp_rate_dynamic(rate, self.current_ffr).adjusted_rate
+</code></pre>
+<p><code>snap_to_25bp_grid</code> rounds to the nearest quarter-point (the Fed sets rates exclusively on the 25bp grid). <code>clamp_rate_dynamic</code> prevents unrealistic jumps — if the current rate is 5.25%, an agent cannot recommend 2.00%. These are not optional safety theater — they are load-bearing infrastructure. Without them, a single hallucinated rate crashes the entire simulation.</p>
+<hr />
+<h2 id="real-time-belief-updates">Real-Time Belief Updates</h2>
+<p>As the meeting progresses, agents update their beliefs:</p>
+<p><strong>Direct updates</strong>: When an agent speaks and signals a rate, their <code>mu</code> and <code>sigma</code> are updated immediately.</p>
+<p><strong>Social influence</strong>: After each round, non-speakers are pulled slightly toward the speakers' average:</p>
+<pre><code class="language-python">def _update_beliefs(self, statements):
+    speaker_mus = [a.mu for a in self.fomc_agents if a.name in speakers]
+    mu_bar = float(np.mean(speaker_mus))
+    for agent in self.fomc_agents:
+        if agent.name not in speakers:
+            alpha = 0.05
+            agent.mu = agent.mu + alpha * (mu_bar - agent.mu)
+</code></pre>
+<p>The <code>alpha = 0.05</code> controls how much an agent's belief shifts toward the committee mean after hearing other speakers. At 0.05, each round closes 5% of the gap between the agent's current position and the speaker average. This is deliberately small -- enough to show social influence without collapsing to groupthink. Over five rounds, the cumulative effect is significant without being overwhelming. An agent who starts at 5.50% and hears four rounds averaging 4.75% will drift to approximately 5.35% -- noticeably moved but still reflecting their prior conviction. Setting alpha much higher (say 0.15) produced unrealistic consensus in testing: by round 3, all agents converged to nearly the same rate, erasing the hawk-dove dynamics that make real FOMC meetings interesting. Setting it much lower (0.01) made the rounds meaningless -- agents ended where they started regardless of what they heard.</p>
+<p>The full belief evolution is tracked in <code>signal_history</code> and visualized in the dashboard as a time series — you can watch a hawk gradually moderate or a dove dig in.</p>
+<hr />
+<h2 id="the-vote">The Vote</h2>
+<p>After all five rounds, the chair proposes a rate and each voting member decides whether to dissent:</p>
+<pre><code class="language-python">def would_dissent(self, r_final, probability_threshold=0.5,
+                  distance_threshold=0.25):
+    distance = abs(self.mu - r_final)
+    effective_cost = (self.dissent_cost_hawkish if r_final &lt; self.mu
+                      else self.dissent_cost_dovish)
+    p_dissent = distance * (1.0 / max(effective_cost, 1e-10)) * (1.0 + self.sigma**2)
+    return p_dissent &gt; probability_threshold and distance &gt; distance_threshold
+</code></pre>
+<p>The dissent formula compares each voter's preferred rate (<code>self.mu</code>, shaped by five rounds of deliberation) to the chair's proposal. If the distance exceeds <code>distance_threshold</code> (25bp -- one standard Fed move), the agent considers dissenting. The probability of actually doing so is scaled by the agent's <code>dissent_cost</code> parameter: a high cost means the agent needs to be further from the proposal before they will publicly break ranks. The Chair has the highest dissent cost (dissenting against your own proposal is effectively impossible in real life). Presidents have the lowest, reflecting the historical record where regional Fed presidents account for the vast majority of real FOMC dissents. The <code>(1.0 + self.sigma**2)</code> term means uncertain agents are slightly more likely to dissent -- if you are unsure about your own position, you are less willing to go along with a proposal that does not feel right. Asymmetric costs (separate <code>dissent_cost_hawkish</code> and <code>dissent_cost_dovish</code>) model the empirical finding that hawkish dissents have historically been more common than dovish ones, and both carry real institutional costs.</p>
+<hr />
+<h2 id="what-breaks">What Breaks</h2>
+<p>Multi-agent deliberation with LLMs is brittle. Here is what goes wrong:</p>
+<p><strong>Persona collapse.</strong> Around round 3 or 4, agents start sounding similar. The LLM's tendency toward helpful, balanced responses overwhelms the persona prompt. Mitigation: strong persona anchoring, round-specific prompts that remind agents of their position, and temperature tuning (0.7 works better than 0.3 for maintaining personality diversity).</p>
+<p><strong>JSON extraction failures.</strong> Roughly 5-10% of responses lack parseable JSON. Some embed the rate in prose ("I believe 4.75% is appropriate") without a JSON block. These get <code>signal_rate: None</code> and the agent's belief is not updated for that round.</p>
+<p><strong>Timeout cascades.</strong> If Ollama is under GPU memory pressure, inference times spike. A round that normally takes 8 minutes can take 25. Dynamic timeouts help (<code>max(600, 120 * len(speaker_names))</code>) but downstream services have their own timeouts.</p>
+<p><strong>Echo chambers.</strong> If the initial speaker selection is unbalanced, early rounds can establish a consensus that later speakers simply echo. The diverse selection and interleaved ordering mitigate this but do not eliminate it.</p>
+<hr />
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>The deliberation service is where the system transitions from data engineering to AI engineering. The economy service provides the facts. The RAG pipeline provides the context. The deliberation service asks 19 agents to interpret those facts through the lens of their individual perspectives and arrive at a collective decision.</p>
+<p>It is messy, partially brittle, and produces genuinely interesting results — just like a real committee meeting. The meeting transcripts are the most interesting output of the entire platform. You can read a hawk changing their mind after hearing labor market data they initially dismissed. You can see a dove dig in when confronted with sticky services inflation.</p>
+
+<figure>
+    <img src="charts/supervision-drilldown.gif" alt="Supervision page drill-down showing LLM deliberation timeline, chair opening prompt, Powell's opening statement, Employment & Inflation debate with 20 events, and Belief Formation agent opinions" loading="lazy">
+    <figcaption>Supervision drill-down — from run overview to individual agent transcripts across deliberation rounds and belief formation</figcaption>
+</figure>
+<p>The point is not perfect prediction. It is structured exploration of the reasoning space around monetary policy decisions — surfacing the arguments, tensions, and tradeoffs that drive the most consequential economic decisions in the world.</p>
+<p>Subscribe for next week's article on the Monte Carlo simulation track — the other half of the dual-track architecture, where 10,000 iterations of Bayesian conjugate updating produce a probability distribution over rates without a single LLM call.</p>
+<p>— Vincent</p>
+<hr />
+
+    
+    <section class="charts">
+        <h2 id="charts">Charts</h2>
+        
+        <figure>
+            <img src="charts/12_belief_evolution.png" alt="Agent belief evolution across 5 deliberation rounds showing hawks moderating and doves holding" loading="lazy">
+            <figcaption>Belief evolution — 19 agents across 5 rounds of structured deliberation</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/13_vote_breakdown.png" alt="FOMC vote breakdown showing consensus and dissent patterns" loading="lazy">
+            <figcaption>Vote breakdown — consensus rates, dissent count, and hawk-dove split</figcaption>
+        </figure>
+
+        <figure>
+            <img src="charts/hawkdove-tour.gif" alt="Hawk-Dove Analysis dashboard tour showing committee stance gauge, diverging spectrum chart, sentiment timeline, member stance cards, and live text classifier" loading="lazy">
+            <figcaption>Hawk-Dove dashboard — committee stance gauge, member spectrum, sentiment timeline, and live text classifier</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/14_meeting_structure.png" alt="5-round FOMC meeting structure with speaker counts per round" loading="lazy">
+            <figcaption>Meeting structure — 5 rounds from Chair opening to final vote</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/diagram-04-deliberation.png" alt="Deliberation flow diagram showing 5-round meeting progression" loading="lazy">
+            <figcaption>Deliberation sequence — Chair opening through policy vote</figcaption>
+        </figure>
+        
+    </section>
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Building a 16-page React dashboard for a complex AI backend — 18,094 lines of TypeScript, SSE streaming, 24 custom hooks, and zero state management libraries.">
+<meta property="og:title" content="Making 80,000 Lines of Backend Code Legible to Humans">
+<meta property="og:description" content="18,094 lines of TypeScript, 16 pages, 24 custom hooks, zero state management libraries — and why the frontend was harder than the backend.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="React dashboard, TypeScript, SSE streaming, data visualization, frontend engineering, custom hooks">
+<title>Making 80,000 Lines of Backend Code Legible to Humans</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="making-80000-lines-of-backend-code-legible-to-humans">Making 80,000 Lines of Backend Code Legible to Humans</h1>
+<p class="subtitle" role="doc-subtitle">18,094 lines of TypeScript, 16 pages, 24 custom hooks, zero state management libraries — and why the frontend was harder than the backend.</p>
+<hr />
+<p>The FOMC Simulation Platform runs ten microservices that together produce a simulated Federal Reserve meeting — agent-level rate recommendations, evolving beliefs, multi-round debate transcripts, probability distributions, and calibration scores. That is a lot of data. And none of it matters if nobody can see it.</p>
+<p>The dashboard is 18,094 lines of React 19 and TypeScript. It talks to all ten backend services through dedicated API clients. It renders 20+ chart types, streams simulation progress in real time over SSE, and lets you export any chart as a timestamped PNG with one click. There is no Redux, no Zustand, no state management library. Just 24 custom hooks built on TanStack Query.</p>
+<hr />
+<h2 id="16-pages-one-simulation">16 Pages, One Simulation</h2>
+<p>The dashboard is not a single analytics view. It is 16 distinct pages, each mapping to a different stage of the pipeline or a different analytical lens:</p>
+<p><strong>Core:</strong> Simulation (launch and configure runs), Results (MC distributions, LLM dot plots, belief evolution, convergence), Beliefs (prior-to-posterior evolution per agent), Hawk-Dove (speech classification with stance gauges).</p>
+
+<figure>
+    <img src="charts/hawkdove-tour.gif" alt="Hawk-Dove Analysis dashboard tour showing committee stance gauge, diverging spectrum chart, sentiment timeline, member stance cards, and live text classifier" loading="lazy">
+    <figcaption>Hawk-Dove page — committee stance gauge, member spectrum, sentiment timeline, and live text classifier</figcaption>
+</figure>
+<p><strong>Data:</strong> Economy (time-series indicators with AI commentary), Beige Book (12-district report with heatmap), Knowledge Graph (force-directed entity visualization), Explorer (semantic search across RAG knowledge base).</p>
+<p><strong>Analysis:</strong> Backtest (historical accuracy against actual decisions), Rate Paths (forward projections and fan charts), Regional (district-level deep dives), Deep Dive (individual run forensics).</p>
+<p><strong>Operations:</strong> Admin (service health, database population), Calendar (FOMC schedule with data markers), History (run comparison), Methodology (statistical documentation).</p>
+
+<figure>
+    <img src="charts/supervision-drilldown.gif" alt="Supervision page drill-down showing LLM deliberation timeline, chair opening prompt, Powell's opening statement, and agent belief opinions" loading="lazy">
+    <figcaption>Supervision page — drill-down from run timeline to individual agent prompts and responses</figcaption>
+</figure>
+<p>The Results page alone is 42KB of TypeScript — six chart components, three custom hooks, and two comparison API calls that run on-demand when you select a simulation run.</p>
+<hr />
+<h2 id="no-state-management-library">No State Management Library</h2>
+<p>TanStack Query replaces Redux for this dashboard. If your state is server-derived, you do not need a client-side store — you need a cache with smart invalidation.</p>
+<pre><code class="language-tsx">// use-runs.ts
+export function useRuns(dateFilter?: string) {
+  return useQuery({
+    queryKey: [&quot;runs&quot;, dateFilter],
+    queryFn: () =&gt; fetchRuns(dateFilter),
+    staleTime: 30_000,
+  });
+}
+
+export function useRun(runId: string) {
+  return useQuery({
+    queryKey: [&quot;run&quot;, runId],
+    queryFn: () =&gt; fetchRunDetail(runId),
+    enabled: !!runId,
+  });
+}
+</code></pre>
+<p>The 24-hook architecture is more code than a single Redux slice, but each hook is independently testable, independently deployable, and immediately comprehensible to any developer who opens the file. <code>staleTime</code> keeps data fresh without refetching on every mount. <code>enabled</code> gates queries so they only fire when their dependencies are ready.</p>
+<hr />
+<h2 id="real-time-sse-streaming">Real-Time SSE Streaming</h2>
+<p>Full simulations take 10-15 minutes end-to-end, with SSE streaming progress updates throughout. The dashboard streams progress in real time over Server-Sent Events:</p>
+<pre><code class="language-tsx">function useSimulationSSE(url: string | null) {
+  const [events, setEvents] = useState([]);
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() =&gt; {
+    if (!url) return;
+    const source = new EventSource(url);
+
+    source.addEventListener(&quot;progress&quot;, (e) =&gt; {
+      const data = JSON.parse(e.data);
+      startTransition(() =&gt; {
+        setEvents(prev =&gt; [...prev, data]);
+      });
+    });
+
+    source.addEventListener(&quot;completed&quot;, (e) =&gt; {
+      onCompleteRef.current?.(JSON.parse(e.data).result);
+      setConnected(false);
+    });
+
+    return () =&gt; source.close();
+  }, [url]);
+}
+</code></pre>
+<p>React 19's <code>startTransition</code> is used for state changes so they do not interrupt higher-priority renders. The event stream carries structured data — round numbers, speaker names, percentage progress — so the UI renders a detailed timeline, not just a spinner.</p>
+<p>SSE beats WebSockets for this use case. The stream is unidirectional (server-to-client only), SSE handles reconnection automatically, works through HTTP/2 without upgrade negotiation, and the browser API is three lines of code.</p>
+<hr />
+<h2 id="per-service-api-clients-with-jwt-interceptors">Per-Service API Clients with JWT Interceptors</h2>
+<p>Ten backend services means you need organized client infrastructure. A factory function bakes in JWT authentication:</p>
+<pre><code class="language-tsx">function createClient(baseUrl: string): KyInstance {
+  return ky.create({
+    prefixUrl: baseUrl,
+    hooks: {
+      beforeRequest: [(req) =&gt; {
+        const token = getAuthToken();
+        if (token) req.headers.set(&quot;Authorization&quot;, `Bearer ${token}`);
+      }],
+      afterResponse: [async (_, __, res) =&gt; {
+        if (res.status === 401) clearSessionToken();
+      }],
+    },
+  });
+}
+
+export const orchestratorClient = createClient(ORCHESTRATOR_URL);
+export const economyClient     = createClient(ECONOMY_URL);
+export const beigeBookClient   = createClient(BEIGE_BOOK_URL);
+// ... 5 more
+</code></pre>
+<p>Every outgoing request automatically attaches the JWT. Every 401 clears the session. When the economy service moved from port 8000 to 9000 and added a <code>/v1</code> prefix, I changed one line.</p>
+<hr />
+<h2 id="chart-stack-recharts-nivo-sigmajs">Chart Stack: Recharts + Nivo + Sigma.js</h2>
+<p>No single charting library covers everything.</p>
+<p><strong>Recharts</strong> handles the statistical workhorses — distributions, scatter plots, time series. Its declarative React API composes well with TypeScript:</p>
+<pre><code class="language-tsx">&lt;Scatter data={data} shape=&quot;circle&quot;&gt;
+  {data.map((point, idx) =&gt; (
+    &lt;Cell key={idx}
+      fill={stanceColor(point.stanceChange)}
+      r={Math.max(5, point.confidence * 10)} /&gt;
+  ))}
+&lt;/Scatter&gt;
+</code></pre>
+<p>Each dot in the FOMC dot plot encodes three dimensions: rate position on X, agent identity on Y, and confidence as radius. Reference lines layer in the current FFR, median forecast, confidence intervals, and historical actual rate.</p>
+<p><strong>Nivo</strong> fills the gaps — its <code>ResponsiveHeatMap</code> powers the Beige Book district sentiment view with diverging color scales.</p>
+<p><strong>Sigma.js + graphology</strong> handles the Knowledge Graph page — force-directed layout of the Neo4j entity graph with degree-scaled node sizing and interactive expansion.</p>
+<hr />
+<h2 id="one-click-png-export">One-Click PNG Export</h2>
+<p>Every chart is wrapped in a <code>ChartExportWrapper</code>:</p>
+<pre><code class="language-tsx">export function ChartExportWrapper({ children, filename }) {
+  const ref = useRef(null);
+  return (
+    &lt;div ref={ref} className=&quot;relative group&quot;&gt;
+      &lt;div className=&quot;absolute top-2 right-2 opacity-0
+                      group-hover:opacity-100 transition-opacity&quot;&gt;
+        &lt;ExportButton targetRef={ref} filename={filename} /&gt;
+      &lt;/div&gt;
+      {children}
+    &lt;/div&gt;
+  );
+}
+</code></pre>
+<p>The export uses lazy-loaded <code>html-to-image</code> with 2x pixel ratio for Retina quality. The background color is pulled from CSS custom properties so exports respect the current theme. Every filename includes an ISO timestamp.</p>
+<p>This feature was added because I kept taking screenshots for documentation. Automating it saved hours — and it is directly useful for Substack articles and LinkedIn posts.</p>
+<hr />
+<h2 id="lessons-learned">Lessons Learned</h2>
+<p><strong>TanStack Query replaces Redux for 90% of dashboards.</strong> If your state is server-derived, you do not need a client-side store.</p>
+<p><strong>One chart library is never enough.</strong> Recharts handles 80% of the work. Accept that you will need something specialized for the other 20%.</p>
+<p><strong>Lazy-load export dependencies.</strong> <code>html-to-image</code> is 40KB gzipped. Nobody needs it until they click the button.</p>
+<p><strong>Type your entire API surface.</strong> When a backend field name changes, TypeScript catches it at compile time, not at runtime in production.</p>
+<p>The dashboard is the part of the project that people actually interact with. All the Bayesian inference, Monte Carlo sampling, and LLM deliberation in the backend is invisible until the frontend makes it legible. That is the job.</p>
+<p>Subscribe for next week's article — the honest backtesting results against 6 years of actual FOMC decisions, including where the model breaks.</p>
+<p>— Vincent</p>
+
+
+    <section class="charts">
+        <h2 id="charts">Charts</h2>
+
+        <figure>
+            <img src="charts/dashboard-tour.gif" alt="Animated tour of the FOMC dashboard showing Economy, Deep Dive, Regional, Calendar, Simulation, Admin, and Explorer pages" loading="lazy">
+            <figcaption>Dashboard tour — 7 pages cycling through the full interface</figcaption>
+        </figure>
+
+        <figure>
+            <img src="charts/dashboard-economy.png" alt="Economy Dashboard showing KPI cards for Fed Funds Rate, Yield Curve, CPI, Unemployment, GDP Growth, with Treasury yield charts below" loading="lazy">
+            <figcaption>Economy Dashboard — executive summary with live KPIs and yield curve</figcaption>
+        </figure>
+
+        <figure>
+            <img src="charts/dashboard-simulation.png" alt="Simulation Control page with configuration panel, live deliberation feed, and results section" loading="lazy">
+            <figcaption>Simulation Control — launch dual-track simulations with live SSE streaming</figcaption>
+        </figure>
+
+        <figure>
+            <img src="charts/dashboard-regional.png" alt="Regional Analysis page showing district heatmap, Beige Book summary, and sector breakdown" loading="lazy">
+            <figcaption>Regional Analysis — per-district economic data with Beige Book integration</figcaption>
+        </figure>
+
+        <figure>
+            <img src="charts/dashboard-admin.png" alt="Administration page showing all 8 microservices healthy with green status indicators and database statistics" loading="lazy">
+            <figcaption>Admin — 8 services healthy, 68,267 total rows, 169 indicators, 49 Beige Books</figcaption>
+        </figure>
+
+        <figure>
+            <img src="charts/knowledge-graph-drilldown.gif" alt="Knowledge graph drill-down selecting Jerome Powell, revealing topic connections, temporal stance nodes, and committee aggregate" loading="lazy">
+            <figcaption>Knowledge Graph drill-down — speaker &rarr; topics &rarr; temporal stances &rarr; committee aggregate</figcaption>
+        </figure>
+
+    </section>
+
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

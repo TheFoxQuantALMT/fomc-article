@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOMC Simulation — System Architecture</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #06090f;
+    font-family: 'DM Mono', monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  svg {
+    width: 100vw;
+    height: 100vh;
+    display: block;
+  }
+
+  /* ── Tooltip ── */
+  .tooltip {
+    position: fixed;
+    background: linear-gradient(135deg, #0d1520 0%, #121e2d 100%);
+    border: 1px solid #c9a84c;
+    border-radius: 10px;
+    padding: 16px 20px;
+    color: #c8d6e5;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s;
+    z-index: 100;
+    max-width: 280px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(201, 168, 76, 0.08);
+  }
+
+  .tooltip.visible { opacity: 1; }
+
+  .tooltip .tt-name {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.1rem;
+    color: #e8dcc8;
+    margin-bottom: 4px;
+  }
+
+  .tooltip .tt-port {
+    font-size: 0.6rem;
+    color: #c9a84c;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
+  .tooltip .tt-desc {
+    color: #7a9ab8;
+    line-height: 1.6;
+  }
+
+  /* ── Header ── */
+  .graph-header {
+    position: fixed;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .graph-header h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2.4rem;
+    font-weight: 400;
+    color: #e8dcc8;
+    letter-spacing: -0.02em;
+  }
+
+  .graph-header h1 span { color: #c9a84c; }
+
+  .graph-header .sub {
+    font-size: 0.65rem;
+    color: #3a5a6a;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 24px;
+    z-index: 10;
+    background: rgba(6, 9, 15, 0.85);
+    border: 1px solid #141e2e;
+    border-radius: 10px;
+    padding: 10px 24px;
+    backdrop-filter: blur(10px);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.65rem;
+    color: #5a7a9a;
+    letter-spacing: 0.05em;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  /* ── Stats ── */
+  .stats {
+    position: fixed;
+    top: 30px;
+    right: 30px;
+    z-index: 10;
+    text-align: right;
+  }
+
+  .stat-item {
+    font-size: 0.65rem;
+    color: #3a5a6a;
+    margin-bottom: 4px;
+  }
+
+  .stat-item strong {
+    color: #c9a84c;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<div class="graph-header">
+  <h1>System <span>Architecture</span></h1>
+  <div class="sub">Force-directed graph &middot; hover nodes for details</div>
+</div>
+
+<div class="stats">
+  <div class="stat-item"><strong>10</strong> services</div>
+  <div class="stat-item"><strong>25</strong> containers</div>
+  <div class="stat-item"><strong>~80,000</strong> lines</div>
+  <div class="stat-item"><strong>0</strong> cloud APIs</div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background: #c9a84c;"></div>Data Collection</div>
+  <div class="legend-item"><div class="legend-dot" style="background: #a78bfa;"></div>Belief Formation</div>
+  <div class="legend-item"><div class="legend-dot" style="background: #4a9aff;"></div>Statistical Track</div>
+  <div class="legend-item"><div class="legend-dot" style="background: #ff6b4a;"></div>Narrative Track</div>
+  <div class="legend-item"><div class="legend-dot" style="background: #4a9a6a;"></div>Output</div>
+  <div class="legend-item"><div class="legend-dot" style="background: #2a4a5a;"></div>Infrastructure</div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tt-name" id="ttName"></div>
+  <div class="tt-port" id="ttPort"></div>
+  <div class="tt-desc" id="ttDesc"></div>
+</div>
+
+<svg id="graph"></svg>
+
+<script>
+const W = window.innerWidth;
+const H = window.innerHeight;
+
+// ── Node data ──
+const nodes = [
+  // Orchestrator
+  { id: 'orch', name: 'Orchestrator', port: '8010', group: 'core',
+    desc: 'Pipeline coordination, health checks, dependency ordering, phased execution.',
+    radius: 38, color: '#e8dcc8' },
+
+  // Phase 0
+  { id: 'econ', name: 'Economy Service', port: '9000', group: 'data',
+    desc: '7 async collectors. Point-in-time data from FRED, BLS, BEA, FRASER, CME, news, Fed.',
+    radius: 42, color: '#c9a84c' },
+  { id: 'beige', name: 'Beige Book', port: '8001', group: 'data',
+    desc: '12 districts × 4-5 analysts. ~40 concurrent LLM calls. Fact-check pipeline.',
+    radius: 36, color: '#c9a84c' },
+  { id: 'hawk', name: 'Hawk-Dove Classifier', port: '8006', group: 'data',
+    desc: 'Dictionary + Ollama dual signal. Graceful degradation to dictionary-only.',
+    radius: 26, color: '#c9a84c' },
+
+  // Phase 1
+  { id: 'belief', name: 'Belief Formation', port: '8002', group: 'belief',
+    desc: '19 FOMC personas. Converts qualitative analysis to Bayesian priors. μ = current_ffr + stance_offset.',
+    radius: 34, color: '#a78bfa' },
+  { id: 'member', name: 'Member Service', port: '8007', group: 'belief',
+    desc: 'Canonical FOMC member data. Real-world policy anchoring. Stance offsets and regional biases.',
+    radius: 28, color: '#a78bfa' },
+
+  // Phase 2
+  { id: 'mc', name: 'Monte Carlo', port: '8003', group: 'statistical',
+    desc: '10,000 iterations. Conjugate Bayesian updating. Correlated signals. Game-theoretic dissent costs.',
+    radius: 34, color: '#4a9aff' },
+  { id: 'llm', name: 'LLM Deliberation', port: '8004', group: 'narrative',
+    desc: '5-round structured debate. 19 agents in natural language. Signal extraction. Position shifting.',
+    radius: 34, color: '#ff6b4a' },
+
+  // Output
+  { id: 'comp', name: 'Comparison', port: '8005', group: 'output',
+    desc: 'Pearson correlation. Welch\'s t-test. Cohen\'s d. Brier score. CRPS. Calibration analysis.',
+    radius: 32, color: '#4a9a6a' },
+  { id: 'dash', name: 'Dashboard', port: '3002', group: 'output',
+    desc: 'React 19 + TypeScript. 16 pages, 20+ chart types. SSE streaming. TanStack Query.',
+    radius: 36, color: '#4a9a6a' },
+
+  // Infrastructure
+  { id: 'pg', name: 'PostgreSQL', port: '5432', group: 'infra', desc: 'Relational data store.', radius: 18, color: '#2a4a5a' },
+  { id: 'redis', name: 'Redis', port: '6379', group: 'infra', desc: 'Cache layer.', radius: 16, color: '#2a4a5a' },
+  { id: 'qdrant', name: 'Qdrant', port: '6333', group: 'infra', desc: 'Vector search for RAG pipeline.', radius: 18, color: '#2a4a5a' },
+  { id: 'neo4j', name: 'Neo4j', port: '7474', group: 'infra', desc: 'Knowledge graph for document reasoning.', radius: 18, color: '#2a4a5a' },
+  { id: 'ollama', name: 'Ollama', port: '11434', group: 'infra', desc: 'Multi-agent orchestration via Ollama. Local LLM inference.', radius: 22, color: '#2a4a5a' },
+  { id: 'searx', name: 'SearXNG', port: '8888', group: 'infra', desc: 'Meta-search engine for news collection.', radius: 16, color: '#2a4a5a' },
+  { id: 'prom', name: 'Prometheus', port: '9090', group: 'infra', desc: 'Metrics collection.', radius: 14, color: '#1a3a4a' },
+  { id: 'grafana', name: 'Grafana', port: '3000', group: 'infra', desc: 'Dashboards and alerting.', radius: 14, color: '#1a3a4a' },
+];
+
+// ── Link data ──
+const links = [
+  // Pipeline flow
+  { source: 'orch', target: 'econ', type: 'pipeline' },
+  { source: 'orch', target: 'beige', type: 'pipeline' },
+  { source: 'orch', target: 'hawk', type: 'pipeline' },
+  { source: 'econ', target: 'belief', type: 'pipeline' },
+  { source: 'beige', target: 'belief', type: 'pipeline' },
+  { source: 'hawk', target: 'belief', type: 'pipeline' },
+  { source: 'member', target: 'belief', type: 'pipeline' },
+  { source: 'belief', target: 'mc', type: 'pipeline' },
+  { source: 'belief', target: 'llm', type: 'pipeline' },
+  { source: 'mc', target: 'comp', type: 'pipeline' },
+  { source: 'llm', target: 'comp', type: 'pipeline' },
+  { source: 'comp', target: 'dash', type: 'pipeline' },
+
+  // Infrastructure deps
+  { source: 'econ', target: 'pg', type: 'infra' },
+  { source: 'econ', target: 'qdrant', type: 'infra' },
+  { source: 'econ', target: 'neo4j', type: 'infra' },
+  { source: 'econ', target: 'searx', type: 'infra' },
+  { source: 'beige', target: 'ollama', type: 'infra' },
+  { source: 'beige', target: 'redis', type: 'infra' },
+  { source: 'hawk', target: 'ollama', type: 'infra' },
+  { source: 'belief', target: 'ollama', type: 'infra' },
+  { source: 'llm', target: 'ollama', type: 'infra' },
+  { source: 'mc', target: 'pg', type: 'infra' },
+  { source: 'prom', target: 'grafana', type: 'infra' },
+];
+
+// ── SVG setup ──
+const svg = d3.select('#graph')
+  .attr('width', W)
+  .attr('height', H);
+
+// Gradient defs
+const defs = svg.append('defs');
+
+// Glow filter
+const glow = defs.append('filter').attr('id', 'glow');
+glow.append('feGaussianBlur').attr('stdDeviation', '4').attr('result', 'blur');
+glow.append('feMerge').selectAll('feMergeNode')
+  .data(['blur', 'SourceGraphic']).enter()
+  .append('feMergeNode').attr('in', d => d);
+
+// Radial gradient for background
+const bgGrad = defs.append('radialGradient')
+  .attr('id', 'bgGrad')
+  .attr('cx', '50%').attr('cy', '50%').attr('r', '60%');
+bgGrad.append('stop').attr('offset', '0%').attr('stop-color', '#0a1018');
+bgGrad.append('stop').attr('offset', '100%').attr('stop-color', '#06090f');
+
+svg.append('rect')
+  .attr('width', W).attr('height', H)
+  .attr('fill', 'url(#bgGrad)');
+
+// Grid lines
+const gridGroup = svg.append('g').attr('class', 'grid').attr('opacity', 0.04);
+for (let x = 0; x < W; x += 60) {
+  gridGroup.append('line')
+    .attr('x1', x).attr('y1', 0).attr('x2', x).attr('y2', H)
+    .attr('stroke', '#5a7a9a').attr('stroke-width', 0.5);
+}
+for (let y = 0; y < H; y += 60) {
+  gridGroup.append('line')
+    .attr('x1', 0).attr('y1', y).attr('x2', W).attr('y2', y)
+    .attr('stroke', '#5a7a9a').attr('stroke-width', 0.5);
+}
+
+// ── Simulation ──
+const simulation = d3.forceSimulation(nodes)
+  .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
+    if (d.type === 'infra') return 100;
+    return 140;
+  }).strength(d => d.type === 'infra' ? 0.3 : 0.6))
+  .force('charge', d3.forceManyBody().strength(d => d.group === 'infra' ? -150 : -400))
+  .force('center', d3.forceCenter(W / 2, H / 2))
+  .force('collision', d3.forceCollide().radius(d => d.radius + 15))
+  .force('y', d3.forceY().y(d => {
+    const yMap = { core: H * 0.12, data: H * 0.32, belief: H * 0.48,
+                   statistical: H * 0.62, narrative: H * 0.62,
+                   output: H * 0.75, infra: H * 0.50 };
+    return yMap[d.group] || H / 2;
+  }).strength(0.08))
+  .force('x', d3.forceX().x(d => {
+    const xMap = { statistical: W * 0.35, narrative: W * 0.65, infra: W * 0.85 };
+    return xMap[d.group] || W / 2;
+  }).strength(d => d.group === 'infra' ? 0.05 : 0.02));
+
+const container = svg.append('g');
+
+// ── Links ──
+const link = container.append('g')
+  .selectAll('line')
+  .data(links)
+  .join('line')
+  .attr('stroke', d => d.type === 'pipeline' ? '#2a3a4a' : '#141e2e')
+  .attr('stroke-width', d => d.type === 'pipeline' ? 2 : 1)
+  .attr('stroke-dasharray', d => d.type === 'infra' ? '4,6' : 'none')
+  .attr('opacity', 0);
+
+// ── Animated flow particles on pipeline links ──
+const flowParticles = container.append('g');
+const pipelineLinks = links.filter(l => l.type === 'pipeline');
+
+pipelineLinks.forEach((l, i) => {
+  for (let j = 0; j < 2; j++) {
+    flowParticles.append('circle')
+      .attr('r', 2.5)
+      .attr('fill', '#c9a84c')
+      .attr('opacity', 0)
+      .attr('class', 'flow-dot')
+      .datum({ linkIndex: links.indexOf(l), offset: j * 0.5, speed: 0.003 + Math.random() * 0.002 });
+  }
+});
+
+// ── Nodes ──
+const node = container.append('g')
+  .selectAll('g')
+  .data(nodes)
+  .join('g')
+  .attr('cursor', 'grab')
+  .call(d3.drag()
+    .on('start', dragStart)
+    .on('drag', dragged)
+    .on('end', dragEnd));
+
+// Node outer glow
+node.append('circle')
+  .attr('r', d => d.radius + 6)
+  .attr('fill', 'none')
+  .attr('stroke', d => d.color)
+  .attr('stroke-width', 1)
+  .attr('opacity', 0)
+  .attr('class', 'node-glow');
+
+// Node body
+node.append('circle')
+  .attr('r', d => d.radius)
+  .attr('fill', d => {
+    const c = d3.color(d.color);
+    c.opacity = 0.12;
+    return c.formatRgb().replace('rgb', 'rgba').replace(')', ', 0.12)');
+  })
+  .attr('stroke', d => d.color)
+  .attr('stroke-width', 1.5)
+  .attr('class', 'node-body')
+  .attr('opacity', 0);
+
+// Node inner circle
+node.append('circle')
+  .attr('r', 4)
+  .attr('fill', d => d.color)
+  .attr('class', 'node-core')
+  .attr('opacity', 0);
+
+// Node labels
+node.append('text')
+  .text(d => d.name)
+  .attr('text-anchor', 'middle')
+  .attr('dy', d => d.radius + 18)
+  .attr('fill', d => d.group === 'infra' ? '#3a5a6a' : '#7a9ab8')
+  .attr('font-family', "'DM Mono', monospace")
+  .attr('font-size', d => d.group === 'infra' ? '9px' : '11px')
+  .attr('letter-spacing', '0.05em')
+  .attr('opacity', 0)
+  .attr('class', 'node-label');
+
+// Port labels
+node.filter(d => d.group !== 'infra')
+  .append('text')
+  .text(d => d.port)
+  .attr('text-anchor', 'middle')
+  .attr('dy', d => d.radius + 30)
+  .attr('fill', '#2a3a4a')
+  .attr('font-family', "'DM Mono', monospace")
+  .attr('font-size', '8px')
+  .attr('opacity', 0)
+  .attr('class', 'node-label');
+
+// ── Tooltip ──
+const tooltip = document.getElementById('tooltip');
+const ttName = document.getElementById('ttName');
+const ttPort = document.getElementById('ttPort');
+const ttDesc = document.getElementById('ttDesc');
+
+node.on('mouseenter', (event, d) => {
+  ttName.textContent = d.name;
+  ttPort.textContent = `PORT ${d.port}`;
+  ttDesc.textContent = d.desc;
+  tooltip.classList.add('visible');
+
+  // Highlight connected links
+  link.attr('opacity', l => {
+    if (l.source.id === d.id || l.target.id === d.id) return 0.8;
+    return 0.05;
+  }).attr('stroke', l => {
+    if ((l.source.id === d.id || l.target.id === d.id) && l.type === 'pipeline') return '#c9a84c';
+    return l.type === 'pipeline' ? '#2a3a4a' : '#141e2e';
+  });
+
+  // Dim non-connected nodes
+  node.select('.node-body').attr('opacity', n => {
+    if (n.id === d.id) return 1;
+    const isConnected = links.some(l =>
+      (l.source.id === d.id && l.target.id === n.id) ||
+      (l.target.id === d.id && l.source.id === n.id)
+    );
+    return isConnected ? 0.9 : 0.2;
+  });
+
+  // Glow on hovered node
+  d3.select(event.currentTarget).select('.node-glow')
+    .transition().duration(300).attr('opacity', 0.3);
+})
+.on('mousemove', (event) => {
+  tooltip.style.left = (event.clientX + 16) + 'px';
+  tooltip.style.top = (event.clientY - 10) + 'px';
+})
+.on('mouseleave', (event) => {
+  tooltip.classList.remove('visible');
+  link.attr('opacity', 0.3).attr('stroke', d => d.type === 'pipeline' ? '#2a3a4a' : '#141e2e');
+  node.select('.node-body').attr('opacity', 0.9);
+  d3.select(event.currentTarget).select('.node-glow')
+    .transition().duration(300).attr('opacity', 0);
+});
+
+// ── Entrance animation ──
+setTimeout(() => {
+  link.transition().duration(1200).delay((d, i) => i * 80).attr('opacity', 0.3);
+  node.select('.node-body').transition().duration(800).delay((d, i) => i * 100).attr('opacity', 0.9);
+  node.select('.node-core').transition().duration(600).delay((d, i) => i * 100 + 200).attr('opacity', 0.9);
+  node.selectAll('.node-label').transition().duration(600).delay((d, i) => 1000).attr('opacity', 1);
+}, 300);
+
+// ── Flow animation ──
+let flowTime = 0;
+function animateFlow() {
+  flowTime += 1;
+  flowParticles.selectAll('.flow-dot').each(function(d) {
+    const linkData = links[d.linkIndex];
+    const t = ((flowTime * d.speed + d.offset) % 1);
+    const sx = linkData.source.x, sy = linkData.source.y;
+    const tx = linkData.target.x, ty = linkData.target.y;
+    const x = sx + (tx - sx) * t;
+    const y = sy + (ty - sy) * t;
+    d3.select(this)
+      .attr('cx', x)
+      .attr('cy', y)
+      .attr('opacity', () => {
+        if (flowTime < 100) return 0;
+        const fade = Math.sin(t * Math.PI);
+        return fade * 0.6;
+      });
+  });
+  requestAnimationFrame(animateFlow);
+}
+animateFlow();
+
+// ── Tick ──
+simulation.on('tick', () => {
+  // Constrain nodes within viewport bounds
+  nodes.forEach(d => {
+    d.x = Math.max(d.radius + 10, Math.min(W - d.radius - 10, d.x));
+    d.y = Math.max(d.radius + 10, Math.min(H - d.radius - 100, d.y));
+  });
+
+  link
+    .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+
+  node.attr('transform', d => `translate(${d.x},${d.y})`);
+});
+
+// ── Drag ──
+function dragStart(event, d) {
+  if (!event.active) simulation.alphaTarget(0.3).restart();
+  d.fx = d.x;
+  d.fy = d.y;
+  d3.select(this).attr('cursor', 'grabbing');
+}
+
+function dragged(event, d) {
+  d.fx = event.x;
+  d.fy = event.y;
+}
+
+function dragEnd(event, d) {
+  if (!event.active) simulation.alphaTarget(0);
+  d.fx = null;
+  d.fy = null;
+  d3.select(this).attr('cursor', 'grab');
+}
+
+// ── Resize ──
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  svg.attr('width', w).attr('height', h);
+  simulation.force('center', d3.forceCenter(w / 2, h / 2));
+  simulation.alpha(0.3).restart();
+});
+</script>
+
+</body>
+</html>

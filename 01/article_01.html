@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="A multi-agent AI platform that simulates FOMC meetings with 19 AI agents, Bayesian inference, and Monte Carlo methods to predict Federal Reserve rate decisions.">
+<meta property="og:title" content="What If You Could Simulate the Fed On Demand?">
+<meta property="og:description" content="Dual-track prediction with multi-agent AI and Bayesian inference — 10 microservices, 25 containers, all running locally on a single machine.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="FOMC simulation, AI agents, Federal Reserve, rate prediction, Bayesian inference, Monte Carlo, multi-agent systems">
+<title>What If You Could Simulate the Fed On Demand?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  .clip-bottom {
+    overflow: hidden;
+    margin-bottom: 0;
+  }
+
+  .clip-bottom img {
+    margin-bottom: -120px;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Breakout figure -- */
+  .breakout {
+    width: 100vw;
+    max-width: 1100px;
+    margin-left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .breakout img {
+    max-width: 100%;
+    border-radius: 12px;
+  }
+
+  /* -- Full-bleed pipeline embed -- */
+  .breakout-full {
+    width: 100vw;
+    margin-left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .breakout-full iframe {
+    width: 100%;
+    border: none;
+    background: var(--bg);
+    display: block;
+  }
+
+  /* -- Expand hint overlay -- */
+  .expand-wrap {
+    position: relative;
+    cursor: pointer;
+  }
+
+  .expand-wrap::after {
+    content: '⛶  Click to expand';
+    position: absolute;
+    top: 16px;
+    right: 24px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--gold);
+    background: rgba(6, 9, 15, 0.85);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 6px;
+    letter-spacing: 0.08em;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .expand-wrap:hover::after {
+    opacity: 1;
+  }
+
+  /* Prevent iframe from stealing hover/click */
+  .expand-wrap iframe {
+    pointer-events: none;
+  }
+
+  /* -- Fullscreen modal -- */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 9, 15, 0.95);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.open {
+    display: flex;
+  }
+
+  .modal-overlay iframe {
+    width: 100%;
+    height: 100%;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+  }
+
+  .modal-close {
+    position: fixed;
+    top: 20px;
+    right: 28px;
+    z-index: 2001;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: rgba(13, 21, 32, 0.9);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    transition: color 0.3s, border-color 0.3s;
+  }
+
+  .modal-close:hover {
+    color: var(--gold);
+    border-color: var(--gold);
+  }
+
+  /* -- Scrollable zoom modal for images -- */
+  .modal-scroll {
+    overflow: auto;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 60px 20px 40px;
+  }
+
+  .modal-scroll img {
+    width: 180vw;
+    max-width: none;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="what-if-you-could-simulate-the-fed">What If You Could Simulate the Fed On Demand?</h1>
+<p class="subtitle" role="doc-subtitle">Dual-Track Prediction with Multi-Agent AI and Bayesian Inference — 80,000 lines of code, 10 microservices, 25 containers, all running locally on a single machine.</p>
+
+<figure class="breakout-full">
+    <div class="expand-wrap" id="pipeline-expand">
+      <iframe id="pipeline-iframe" src="charts/visual-pipeline-flow.html" frameborder="0" scrolling="no" title="Interactive FOMC simulation pipeline — 10 services activating across 5 phases" loading="eager" style="height: 3800px;"></iframe>
+    </div>
+    <figcaption>10 services, 25 containers, one <code>make simulate</code> command — interactive pipeline visualization</figcaption>
+</figure>
+
+<!-- Fullscreen modal -->
+<div class="modal-overlay" id="pipelineModal">
+    <button class="modal-close" id="modalClose">ESC &times; CLOSE</button>
+    <iframe src="charts/visual-pipeline-flow.html" frameborder="0" title="FOMC Pipeline — fullscreen"></iframe>
+</div>
+
+<hr />
+<p>Oceans of research exist on what happens <em>after</em> the Federal Reserve adjusts rates — how markets react, how credit flows shift, how currencies reprice. Far less attention goes to the process that produces those decisions in the first place. The deliberation itself — how twelve voting members weigh conflicting signals, form coalitions, and negotiate basis points behind closed doors — remains largely opaque. The Fed publishes full transcripts, but only five years after the fact. By the time you can read the room, the room has changed.</p>
+<p>Recent advances in large language models have opened an unexpected door here. If LLM-based agents can convincingly simulate human reasoning in constrained institutional settings — and a growing body of work suggests they can — then it becomes possible to do something that was previously out of reach: reconstruct the deliberative machinery of a central bank committee meeting, not just forecast its output.</p>
+<p>That is what this project attempts. I built a multi-agent platform where 19 AI personas — each modeled after a real FOMC member with distinct policy leanings, regional perspectives, and rhetorical tendencies — debate monetary policy using only the economic data that was actually available on meeting day. On January 28, 2026, when the Federal Reserve held rates steady at 3.50–3.75%, my system predicted 3.75% — both tracks, Monte Carlo and LLM deliberation, converging independently on the same number.</p>
+<p>The system spans ~80,000 lines of Python and TypeScript across 10 microservices, 25 Docker containers, three databases, and a 16-page React dashboard. Everything runs locally on a single machine with a GPU — no cloud APIs, no OpenAI keys, no recurring costs beyond electricity.</p>
+<p>But the point estimate is not really the point. The value is in the reasoning traces: watching a simulated hawk soften after processing labor market data, or seeing two prediction methodologies diverge and asking <em>why</em>. This is a tool for understanding the decision-making process, not just betting on its outcome.</p>
+<hr />
+<h2 id="what-the-system-does">What the System Does</h2>
+<p>The FOMC Simulation Platform runs a complete mock Federal Reserve meeting. It:</p>
+<ol>
+<li><strong>Gathers point-in-time economic data</strong> from FRED, BLS, financial APIs, and real-time news via SearXNG — constrained to only what was actually known on the meeting date (no look-ahead bias)</li>
+<li><strong>Generates a synthetic Beige Book</strong> analyzing regional economic conditions across all 12 Federal Reserve districts, with sector-level analysis and cross-district theme extraction</li>
+<li><strong>Classifies member speeches</strong> as hawkish or dovish using a hybrid dictionary + ML pipeline</li>
+<li><strong>Anchors each member's policy stance</strong> relative to the current federal funds rate using stance offsets — portable across any rate environment without recalibration</li>
+<li><strong>Forms beliefs</strong> for each of 19 FOMC members using LLM personas anchored to their real-world policy philosophies</li>
+<li><strong>Runs two parallel prediction tracks:</strong>
+<ul>
+<li><strong>Monte Carlo simulation</strong> (10,000 iterations) using Bayesian conjugate priors and a voting model</li>
+<li><strong>LLM deliberation</strong> where agents participate in a structured 5-round debate with signal extraction</li>
+</ul>
+</li>
+<li><strong>Compares the tracks</strong> using probabilistic scoring metrics (Brier score, CRPS, calibration analysis)</li>
+<li><strong>Produces a combined prediction</strong> with confidence intervals</li>
+</ol>
+<p>The entire pipeline is orchestrated across 10 microservices, backed by PostgreSQL, Qdrant (vector search), and Neo4j (knowledge graph), with full observability via Prometheus, Grafana, and Loki.</p>
+<p>Because every data source is constrained to point-in-time availability, the system can be run for <strong>any date</strong> — past, present, or upcoming. This makes it useful not only for backtesting against historical decisions, but also for generating forward-looking predictions that can be compared against market-implied expectations from tools like Bloomberg WIRP or CME FedWatch.</p>
+<hr />
+<h2 id="the-architecture">The Architecture</h2>
+<figure class="breakout-full">
+    <div class="expand-wrap" id="arch-expand">
+      <img src="charts/architecture-overview.png" alt="FOMC Simulation Platform — Data-Driven Dual-Track Architecture showing 10 microservices, pipeline phases, and data stores" loading="lazy" style="pointer-events: none; max-width: 100%; border-radius: 12px;">
+    </div>
+    <figcaption>Data-Driven Dual-Track Architecture — 10 microservices orchestrated across 5 pipeline phases</figcaption>
+</figure>
+
+<div class="modal-overlay modal-scroll" id="archModal">
+    <button type="button" class="modal-close" id="archModalClose">ESC &times; CLOSE</button>
+    <img src="charts/architecture-overview.png" alt="FOMC Simulation Platform — architecture overview fullscreen">
+</div>
+<p>10 Python/TypeScript services running FastAPI + Uvicorn (backend) and React 19 (frontend), communicating via REST. Everything is async — <code>httpx.AsyncClient</code> for inter-service calls, <code>asyncio.Semaphore</code> for bounded concurrency to the LLM backend.</p>
+<p>All LLM inference runs locally via Ollama — swappable with a single environment variable. A lightweight model like <code>qwen2.5:3b</code> keeps iteration fast during development; a high-context model like <code>gemma3:27b</code> or <code>qwen3:14b</code> improves deliberation quality when accuracy matters most. No OpenAI API, no cloud dependencies.</p>
+<p>25 Docker containers in total: the 10 application services plus PostgreSQL, Qdrant, Neo4j, SearXNG (meta-search for news), nginx, CloudBeaver, Prometheus, AlertManager, Grafana, Loki, Promtail, node-exporter, cadvisor, postgres-exporter, and nginx-exporter.</p>
+<hr />
+<h2 id="the-10-services">The 10 Services</h2>
+<p>Here is the service map:</p>
+<p><strong>Economy Service</strong> — The largest service and foundation of everything downstream. It collects data from 7 external sources (FRED, BLS, BEA, FRASER, CME futures, news via SearXNG, and Fed historical data), maintains a full RAG pipeline with Qdrant and Neo4j, and serves pre-packaged "intelligence bundles" to downstream services. Every other service that needs economic data calls this one — never an external API. This is where point-in-time constraints are enforced.</p>
+<p><strong>Beige Book Service</strong> — The most architecturally complex service. It orchestrates a multi-agent workflow to produce a synthetic Federal Reserve Beige Book. For each of 12 districts, it runs a team of 8 sector analysts in parallel, aggregates through a synthesizer agent, and fact-checks against source documents. That is up to 96 concurrent LLM calls, throttled through <code>asyncio.Semaphore</code>.</p>
+<p><strong>Hawk-Dove Classifier</strong> — Classifies FOMC speeches using a dual-signal approach: dictionary scoring (always runs) plus optional ML scoring via Ollama. The feature gate is deliberate — if the LLM is unavailable, the service degrades gracefully to dictionary-only rather than crashing.</p>
+<p><strong>Member Service</strong> — The canonical source of truth for who sits on the FOMC, what they believe, and how those beliefs translate into simulation parameters.</p>
+<p><strong>Belief Formation Service</strong> — Where LLM agents become Federal Reserve policymakers. Each member gets a rich persona built from real speech data, and the service converts qualitative analysis into quantitative Bayesian priors.</p>
+<p><strong>Monte Carlo Simulation Service</strong> — Runs 10,000 iterations of committee votes using conjugate Bayesian updating, correlated signal models, and game-theoretic dissent costs. No LLM calls — pure numerical simulation.</p>
+<p><strong>LLM Deliberation Service</strong> — The structured 5-round debate where 19 AI agents argue in natural language. They reference specific data points, challenge each other's logic, and shift positions. The meeting transcripts are the most interesting output.</p>
+<p><strong>Comparison Service</strong> — Takes outputs from both the MC and LLM tracks and quantifies their agreement using Pearson correlation, Welch's t-test, and Cohen's d effect size. When the tracks diverge, that disagreement is a signal.</p>
+<p><strong>Orchestrator Service</strong> — Coordinates all 10 services through a phased pipeline with health checks, dependency ordering, and structured output.</p>
+<p><strong>Dashboard</strong> — React 19 + TypeScript + TailwindCSS. 16 pages, 20+ chart types, real-time SSE streaming. No Redux — just 24 custom hooks on TanStack Query.</p>
+<hr />
+<h2 id="the-dual-track-innovation">The Dual-Track Innovation</h2>
+<p>The system's most distinctive architectural decision is running two fundamentally different prediction approaches in parallel and comparing their outputs.</p>
+<h3 id="the-monte-carlo-track">The Monte Carlo Track</h3>
+<p>Runs 10,000 simulated FOMC meetings. Each agent starts with a Bayesian prior over interest rates, receives noisy economic signals, updates beliefs via conjugate updates, deliberates through a consensus mechanism, and votes. The output is a distribution over rates — a probability fan chart.</p>
+<p>This track gives you <strong>statistical rigor</strong>: distributional shape, tail risk, and convergence guarantees. You know exactly how uncertain the prediction is.</p>
+<h3 id="the-llm-track">The LLM Track</h3>
+<p>Runs a structured 5-round meeting where agents actually argue in natural language. They reference specific data points, challenge each other's logic, and shift positions in response to persuasive arguments.</p>
+<p>This track gives you <strong>narrative reasoning</strong>: why agents disagree, what factors drive the debate, and how consensus forms (or doesn't). You can read a hawk changing their mind after hearing labor market data they initially dismissed.</p>
+<h3 id="why-it-matters">Why It Matters</h3>
+<p>When both tracks agree, confidence is high. When they diverge — like the 38-basis-point gap in the January 2025 simulation — that disagreement itself is informative. The Comparison Service quantifies this with statistical tests: is the divergence significant? What is the effect size? These are not rhetorical questions — they have numerical answers.</p>
+<hr />
+<h2 id="the-stance-offset-innovation">The Stance-Offset Innovation</h2>
+<p>One early design mistake was hardcoding absolute rate preferences for each agent. Jerome Powell "wants" 5.25%. But that is meaningless when the FFR moves from 0.25% to 5.50% over roughly 16 months (March 2022 to July 2023).</p>
+<p>The solution: <strong>stance offsets</strong>. Each agent's preference is defined relative to the current federal funds rate:</p>
+<pre><code>mu = current_ffr + stance_offset
+</code></pre>
+<p>A hawk like Waller has <code>stance_offset = +0.75</code> (always wants meaningfully tighter). A dove like Goolsbee has <code>stance_offset = -0.75</code> (always wants easier conditions). A centrist like Powell has <code>stance_offset = 0.00</code> (anchored to current policy).</p>
+<p>This single change made the system work across any rate environment — from the zero lower bound to the 2022 hiking cycle — without manual recalibration.</p>
+<hr />
+<h2 id="what-i-learned-building-this">What I Learned Building This</h2>
+<p><strong>Multi-agent systems need guardrails, not just prompts.</strong> LLMs are unpredictable. An agent might return a rate of 15% or refuse to provide a number. I built a layered signal extraction pipeline with JSON parsing, multiple regex fallbacks, range validation, and graceful degradation. The guardrails run after every LLM call in every service. They are load-bearing infrastructure.</p>
+<p><strong>Agents need shared context, not just shared prompts.</strong> Early versions had each agent reasoning in isolation. The breakthrough was building a group chat architecture where agents see each other's arguments and a GraphRAG knowledge base where meeting context, economic analysis, and prior deliberations are embedded and retrievable. Agents that can reference what another agent said two rounds ago — and cross-check it against source documents in the knowledge graph — produce qualitatively different debates than agents working from the same static prompt.</p>
+<p><strong>Determinism is a spectrum, not a boolean.</strong> LLMs are inherently non-deterministic — the same prompt produces different outputs across runs. In a system that needs reproducible analysis, you cannot fight this; you have to design around it. The Monte Carlo track embraces randomness structurally: run 10,000 iterations and let the distribution speak. The LLM track uses structured extraction pipelines to convert free-text reasoning into constrained numerical outputs, temperature controls, and seed pinning where supported. The Comparison Service then quantifies run-to-run variance. The lesson: do not try to make LLMs deterministic — instead, build the infrastructure to measure and bound their uncertainty.</p>
+<p><strong>Two tracks beat one.</strong> Monte Carlo gives you statistical rigor. LLM deliberation gives you narrative reasoning. Neither alone tells the full story. The comparison service exists precisely because the interesting insight is in the gap between them.</p>
+<p><strong>Point-in-time data is non-negotiable.</strong> Financial ML systems that train on revised data are lying to themselves. The Economy Service only surfaces indicators available on the as-of date, with full provenance tracking. This is the difference between "our model predicted 2020 correctly" and "our model predicted 2020 correctly using data that existed in 2023."</p>
+<p><strong>The boring infrastructure matters most.</strong> The most impactful engineering was not the Bayesian math or the LLM prompts — it was the Makefile. Having <code>make simulate DATE=2026-01-28</code> work end-to-end, with health checks, dependency ordering, and structured output, is what makes the system usable rather than a demo.</p>
+<hr />
+<h2 id="results">Results</h2>
+<p>Across backtesting on 48 FOMC meetings from January 2020 through January 2026:</p>
+<ul>
+<li>The system correctly predicts the <strong>direction</strong> of rate decisions (hold/hike/cut) the majority of the time</li>
+<li>Mean absolute error hovers around 15-30 basis points on the rate level</li>
+<li>The system handled extreme events — the emergency COVID cuts in March 2020 and the aggressive 75bp hikes in 2022 — with degraded but non-catastrophic performance</li>
+<li>Calibration is imperfect but informative: when the system is confident, it tends to be right</li>
+</ul>
+<p>(Note: the LLM deliberation track's training data may overlap the backtest period depending on model choice — see the backtesting article later in this series for a full discussion of this limitation.)</p>
+<p>This is a research tool, not a trading signal. Its value is in the reasoning traces, not the point estimates.</p>
+<hr />
+<h2 id="what-is-coming-next">What Is Coming Next</h2>
+<p>This series will dive deep into each component:</p>
+<ol>
+<li><strong>Next week: Point-in-time data engineering</strong> — how I built a time-travel economic database with 7 async collectors and full provenance tracking</li>
+<li><strong>GraphRAG</strong> — combining Qdrant vector search with Neo4j knowledge graphs for financial document reasoning</li>
+<li><strong>Multi-agent LLM meetings</strong> — orchestrating 19 agents through structured 5-round deliberation</li>
+<li><strong>Bayesian Monte Carlo</strong> — the conjugate prior math behind 10,000-iteration policy simulations</li>
+<li><strong>Infrastructure</strong> — running 25 containers with one <code>make</code> command</li>
+<li><strong>The dashboard</strong> — building 16 pages and 20+ chart types in React 19</li>
+<li><strong>Backtesting</strong> — does any of this actually work? Statistical validation against 6 years of FOMC history</li>
+</ol>
+<p>Each article will include architecture decisions, code snippets, and the mistakes I made along the way.</p>
+<p>— Vincent</p>
+<hr />
+
+    <section class="charts">
+
+        <figure class="clip-bottom">
+            <img src="charts/d3-architecture.gif" alt="D3 force-directed system architecture graph showing 10 services and infrastructure" loading="lazy">
+            <figcaption>Force-directed architecture graph — services and infrastructure (click to <a href="charts/visual-d3-pipeline.html">view interactive version</a>)</figcaption>
+        </figure>
+
+    </section>
+    
+</article>
+
+</main>
+
+<script>
+  // Auto-resize pipeline iframe to match its content height
+  const pipelineIframe = document.getElementById('pipeline-iframe');
+  if (pipelineIframe) {
+    function resizePipelineIframe() {
+      try {
+        const h = pipelineIframe.contentDocument.documentElement.scrollHeight;
+        if (h > 0) pipelineIframe.style.height = h + 'px';
+      } catch (e) { /* cross-origin fallback: keep CSS height */ }
+    }
+    pipelineIframe.addEventListener('load', function() {
+      resizePipelineIframe();
+      setTimeout(resizePipelineIframe, 9000);
+    });
+  }
+
+  // Fullscreen modals
+  function setupModal(triggerId, modalId, closeId) {
+    var trigger = document.getElementById(triggerId);
+    var overlay = document.getElementById(modalId);
+    var close = document.getElementById(closeId);
+    if (!trigger || !overlay) return;
+
+    function open() { overlay.classList.add('open'); document.body.style.overflow = 'hidden'; }
+    function shut() { overlay.classList.remove('open'); document.body.style.overflow = ''; }
+
+    trigger.addEventListener('click', open);
+    if (close) close.addEventListener('click', shut);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) shut(); });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && overlay.classList.contains('open')) shut();
+    });
+  }
+
+  setupModal('pipeline-expand', 'pipelineModal', 'modalClose');
+  setupModal('arch-expand', 'archModal', 'archModalClose');
+</script>
+
+</body>
+</html>

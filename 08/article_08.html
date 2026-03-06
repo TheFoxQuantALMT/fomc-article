@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="A stateless statistical engine comparing dual-track predictions — Pearson correlation, Welch's t-test, Cohen's d, CRPS, and the Diebold-Mariano test for forecast comparison.">
+<meta property="og:title" content="The Most Interesting Part of a Simulation Is Not the Prediction">
+<meta property="og:description" content="A stateless statistical engine that tells you why two models disagree — effect size over p-values, proper scoring rules, and forecast comparison.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="model comparison, statistical testing, Diebold-Mariano, CRPS, effect size, forecast evaluation, Brier score">
+<title>The Most Interesting Part of a Simulation Is Not the Prediction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="the-most-interesting-part-of-a-simulation-is-not-the-prediction">The Most Interesting Part of a Simulation Is Not the Prediction</h1>
+<p class="subtitle" role="doc-subtitle">A stateless statistical engine that tells you <em>why</em> two models disagree — Pearson correlation, Welch's t-test, Cohen's d, CRPS, Diebold-Mariano, and the case for effect size over p-values.</p>
+<hr />
+<p>I run two completely independent models of the Federal Reserve's interest rate decisions. One is a Monte Carlo simulation with Bayesian belief updating. The other is a multi-agent LLM deliberation where AI personas argue their way to a vote. They both predict the same thing: the Federal Funds Rate.</p>
+<p>The prediction itself is fine. But the interesting part — the part that actually tells you something — is when they disagree.</p>
+<p>That is why the comparison service exists. It is Phase 3 of the pipeline, 1,375 lines of Python, and its entire job is to take outputs from two modeling tracks, lay them side by side, and answer: <em>how different are these results, and should we care?</em></p>
+<hr />
+<h2 id="three-metrics-three-stories">Three Metrics, Three Stories</h2>
+<pre><code class="language-python">def compare_tracks(mc_mean_rate, mc_std_rate, mc_beliefs,
+                   llm_rate, llm_votes):
+    rate_diff = abs(mc_mean_rate - llm_rate)
+
+    # Per-agent belief correlation
+    common = set(mc_beliefs.keys()) &amp; set(llm_votes.keys())
+    if len(common) &gt;= 3:
+        mc_vals = [mc_beliefs[a] for a in common]
+        llm_vals = [llm_votes[a] for a in common]
+        corr, _ = stats.pearsonr(mc_vals, llm_vals)
+
+    if rate_diff &lt; 0.1 and abs(corr) &gt; 0.7:
+        agreement = &quot;strong&quot;
+    elif rate_diff &lt; 0.25 and abs(corr) &gt; 0.4:
+        agreement = &quot;moderate&quot;
+    else:
+        agreement = &quot;weak&quot;
+</code></pre>
+<p>The rate difference tells you how far apart the final numbers are. The dissent divergence tells you whether internal dynamics played out similarly. And the Pearson correlation on per-agent beliefs tells you whether the <em>same agents</em> ended up in the same place — which is the most revealing signal. If Agent A (a known hawk) ended up dovish in the MC track but hawkish in the LLM track, that is a qualitative disagreement worth investigating, not just a numerical one.</p>
+<p>"Strong" agreement requires both a rate gap under 10bp <em>and</em> per-agent correlation above 0.7. In practice, most meetings land in "moderate" — which is exactly what you would expect from two fundamentally different approaches arriving at similar conclusions through different reasoning.</p>
+<hr />
+<h2 id="treatment-effects-what-variables-actually-change-outcomes">Treatment Effects: What Variables Actually Change Outcomes</h2>
+<p>The service answers an experimental question: if I change one input, does the output change? Run the MC simulation twice — baseline and with an oil price shock — and feed both distributions to the treatment endpoint:</p>
+<pre><code class="language-python">def calculate_treatment_effect(baseline_rates, treatment_rates, treatment_name):
+    b = np.array(baseline_rates)
+    t = np.array(treatment_rates)
+
+    pooled_std = np.sqrt((np.std(b, ddof=1)**2 + np.std(t, ddof=1)**2) / 2)
+    effect_size = float((np.mean(t) - np.mean(b)) / pooled_std)  # Cohen's d
+
+    _, p_value = stats.ttest_ind(b, t, equal_var=False)  # Welch's t-test
+
+    # Bootstrap 95% CI on the mean difference
+    rng = np.random.default_rng(42)
+    diffs = []
+    for _ in range(10_000):
+        bs = rng.choice(b, size=len(b), replace=True)
+        ts = rng.choice(t, size=len(t), replace=True)
+        diffs.append(float(np.mean(ts) - np.mean(bs)))
+    ci = [float(np.percentile(diffs, 2.5)), float(np.percentile(diffs, 97.5))]
+</code></pre>
+<p>Three layers of rigor. First, Welch's t-test (unequal variance — important when treatment might change the spread). Second, Cohen's d effect size, because p-values are notoriously misleading with large simulation sample sizes — a p-value of 0.001 means nothing if the effect size is 0.02. Third, a 10,000-iteration bootstrap for the confidence interval, because the bootstrap makes no distributional assumptions about the rate distribution (which is often multimodal since rates cluster at 25bp increments).</p>
+<p>The fixed seed is deliberate. Reproducibility is non-negotiable in a pipeline that might be audited.</p>
+<hr />
+<h2 id="proper-scoring-rules-are-you-actually-good-at-this">Proper Scoring Rules: Are You Actually Good at This?</h2>
+<p>Producing a forecast is easy. Knowing whether your forecasts are well-calibrated is hard. The scoring module implements three proper scoring rules:</p>
+<p><strong>CRPS</strong> (Continuous Ranked Probability Score) evaluates the entire forecast distribution against the single observed outcome:</p>
+<pre><code class="language-python">def crps(forecast_samples, observation):
+    x = np.sort(np.asarray(forecast_samples).ravel())
+    n = len(x)
+    term1 = float(np.mean(np.abs(x - observation)))
+    # O(n log n) sorted-array identity for pairwise differences
+    indices = np.arange(n)
+    term2 = float(np.sum((2 * indices - n + 1) * x) / (n * n))
+    return term1 - abs(term2)
+</code></pre>
+<p>Unlike point-estimate metrics (MAE, RMSE), CRPS rewards a tight, well-centered distribution and penalizes overconfidence or bias.</p>
+<p><strong>Log score</strong> estimates density at the observation using Gaussian KDE, then returns the negative log density. This is the most punishing metric — it goes to infinity if your forecast assigns zero probability to what actually happened. There is no hiding from the log score.</p>
+<p><strong>Brier score</strong> evaluates binary outcomes: did your predicted probability of a rate hike match what happened?</p>
+<hr />
+<h2 id="the-diebold-mariano-test">The Diebold-Mariano Test</h2>
+<p>The question every dual-model system needs: is one model statistically better than the other?</p>
+<pre><code class="language-python">def diebold_mariano(errors_1, errors_2, loss=&quot;squared&quot;):
+    e1, e2 = np.asarray(errors_1), np.asarray(errors_2)
+    n = min(len(e1), len(e2))
+
+    if loss == &quot;squared&quot;:
+        d = e1[:n]**2 - e2[:n]**2
+    else:
+        d = np.abs(e1[:n]) - np.abs(e2[:n])
+
+    d_bar = float(np.mean(d))
+    d_var = float(np.var(d, ddof=1))
+    dm_stat = d_bar / math.sqrt(d_var / n)
+    p_value = 2.0 * (1.0 - stats.t.cdf(abs(dm_stat), df=n - 1))
+</code></pre>
+<p>The Diebold-Mariano test answers the question every dual-model system needs to confront: is one model actually better at forecasting, or has it just been luckier over a particular stretch? The test works by computing the difference in loss (squared error or absolute error) between two models at each time step, then testing whether the mean difference is statistically distinguishable from zero. The basic implementation uses standard variance estimation of the loss differences. A more robust version would use HAC (Heteroscedasticity and Autocorrelation Consistent) variance estimation via the Newey-West method to account for serial correlation — important because forecast errors in consecutive FOMC meetings are not independent. With only 40+ meetings, the practical difference is small, but this is a known limitation.</p>
+<p>In the walk-forward backtest, the comparison service applies the DM test at each step as the window expands: MC errors versus LLM errors, and combined ensemble errors versus MC-only errors. Early in the backtest, the test has little power -- a handful of meetings cannot distinguish skill from luck. But as the window grows past 15-20 meetings, the test begins to deliver definitive statistical answers: does the ensemble actually outperform its components, or is the combination no better than the best individual track?</p>
+<hr />
+<h2 id="the-beauty-of-stateless-design">The Beauty of Stateless Design</h2>
+<p>This entire service has no database. No persistence layer. No Redis cache. No connection pools. Every request arrives with all the data it needs, gets processed through pure functions, and returns a result.</p>
+<p>This was deliberate. The comparison service sits at Phase 3, after MC and LLM have already run. It does not need to remember anything between requests. The FastAPI layer is intentionally thin — extract data from the Pydantic model, validate minimums, call the pure analysis function, return the typed response. There is no ORM, no migration, no connection retry logic. The complexity lives in the math, not the infrastructure.</p>
+<p>The result: it can be horizontally scaled by running more containers, restarted with zero data loss, and tested with nothing more than pytest and fabricated inputs.</p>
+<hr />
+<h2 id="lessons-learned">Lessons Learned</h2>
+<p><strong>Stateless services are underrated.</strong> Resisting the "give it a database" impulse made this the most reliable, testable, and deployable service in the platform.</p>
+<p><strong>Effect size matters more than p-values.</strong> With 10,000 MC iterations and near-zero sampling noise, almost everything is "statistically significant." Cohen's d and bootstrap CIs tell you whether the difference is meaningful, not just detectable.</p>
+<p><strong>Proper scoring rules keep you honest.</strong> If you produce probabilistic forecasts and only measure point accuracy, you are leaving the most important information on the table.</p>
+<p><strong>The DM test answers the question that matters.</strong> "Is Model A better than Model B?" requires controlling for time-series structure. The Diebold-Mariano test does this.</p>
+<p>The comparison service is the smallest service in the platform. It is also, arguably, the one that makes everything else worth building.</p>
+<p>Subscribe for next week's article on the infrastructure that ties it all together — 25 containers, one Make command, and why health check cascades are harder than they look.</p>
+<p>— Vincent</p>
+
+    
+    <section class="charts">
+        <h2 id="charts">Charts</h2>
+        
+        <figure>
+            <img src="charts/15_mc_vs_llm_comparison.png" alt="Monte Carlo vs LLM deliberation comparison showing rate predictions, agreement level, and per-agent correlation" loading="lazy">
+            <figcaption>Dual-track comparison — MC simulation vs LLM deliberation rate predictions</figcaption>
+        </figure>
+        
+    </section>
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

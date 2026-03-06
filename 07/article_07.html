@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Agent framework patterns for local LLMs: lightweight tool-callers, framework agents with context injection, and GroupChat orchestration with graph-based workflows.">
+<meta property="og:title" content="Three Ways to Build AI Agents (And When to Use Each)">
+<meta property="og:description" content="Agent framework patterns for local LLMs — from lightweight tool-callers to full GroupChat orchestration with context injection and graph-based workflows.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="AI agent framework, local LLM, tool calling, GroupChat, agent orchestration, Ollama, Python">
+<title>Three Ways to Build AI Agents (And When to Use Each)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="three-ways-to-build-ai-agents-and-when-to-use-each">Three Ways to Build AI Agents (And When to Use Each)</h1>
+<p class="subtitle" role="doc-subtitle">Agent framework patterns for local LLMs — from lightweight tool-callers to full GroupChat orchestration with context injection and graph-based workflows.</p>
+<hr />
+<p>When most people hear "AI agent framework," they think of a chatbot with a few tools bolted on. I built something different: a platform where 19 autonomous AI agents role-play as Federal Reserve officials, deliberate monetary policy across structured meeting rounds, and arrive at a consensus rate decision — all running on local LLMs through Ollama.</p>
+<p>This article walks through the three distinct agent creation patterns I converged on across five microservices, the GroupChat orchestration that makes multi-agent meetings work, and the WorkflowBuilder that coordinates the entire ten-service pipeline as a directed graph. If you are building multi-agent systems beyond toy demos, these are the patterns that matter.</p>
+<hr />
+<h2 id="running-agent-framework-with-local-llms">Running Agent Framework with Local LLMs</h2>
+<p>A deliberate constraint: all inference runs through Ollama. No OpenAI, no Anthropic API, no cloud inference. The <code>OllamaChatClient</code> makes this possible:</p>
+<pre><code class="language-python">from agent_framework.ollama import OllamaChatClient
+
+chat_client = OllamaChatClient(
+    host=args.base_url,
+    model_id=args.model,
+    keep_alive=300,  # Keep model in VRAM for 5 minutes
+)
+</code></pre>
+<p>The <code>keep_alive</code> parameter is critical. When cycling through 19 agents across 5 meeting rounds, you do not want the model unloading and reloading between every turn. The client is shared across all agents in a meeting — Ollama serializes requests to a single GPU anyway, so sharing avoids connection overhead without sacrificing throughput.</p>
+<hr />
+<h2 id="pattern-a-standard-chatagent-embarrassingly-parallel">Pattern A: Standard ChatAgent (Embarrassingly Parallel)</h2>
+<p>The belief-formation service creates 19 independent <code>ChatAgent</code> instances, one per FOMC member, and runs them gated by a semaphore for VRAM safety:</p>
+<pre><code class="language-python">from agent_framework import ChatAgent
+
+chat_agent = ChatAgent(
+    chat_client=chat_client,
+    instructions=build_system_instructions(fomc_agent),
+    name=name,
+    context_providers=ctx_provider,
+    temperature=args.temperature,
+)
+
+response = await chat_agent.run(user_message)
+</code></pre>
+<p>Use this when agents are independent and do not need to interact. Each gets persona-specific instructions built from biographical data — tenure, education, policy contributions, communication style.</p>
+<p>The Beige Book service uses the same pattern with four specialized agent types — intelligence gatherers (temperature 0.3), sector analysts (0.5), synthesizers (0.5), verifiers (0.3) — each with different tool configurations.</p>
+<hr />
+<h2 id="pattern-b-frameworkagent-with-context-providers-and-tools">Pattern B: FrameworkAgent with Context Providers and Tools</h2>
+<p>The deliberation service needs agents that are aware of meeting state, can call tools to look up data, and receive dynamic context that changes between rounds:</p>
+<pre><code class="language-python">from agent_framework import Agent as FrameworkAgent, BaseContextProvider
+
+agent = FrameworkAgent(
+    client=self._chat_client,
+    name=a.name,
+    instructions=_build_system_prompt(a),
+    default_options=ChatOptions(temperature=0.7, keep_alive=300),
+    context_providers=all_providers,
+    tools=agent_tools,
+)
+</code></pre>
+<p>The <code>context_providers</code> list includes a <code>DeliberationContextProvider</code> that injects per-agent belief state and — critically — rewrites conversation history. This solves the most subtle bug in multi-agent GroupChat.</p>
+<hr />
+<h2 id="the-groupchat-role-rewriting-bug">The GroupChat Role-Rewriting Bug</h2>
+<p>When the GroupChat broadcasts Agent A's response, it arrives at Agent B as an <code>assistant</code>-role message. But the LLM interprets <code>assistant</code> messages as its own prior output — it thinks <em>it</em> already said that, and continues the train of thought instead of responding as a different character.</p>
+<pre><code class="language-python">class DeliberationContextProvider(BaseContextProvider):
+    async def before_run(self, agent, session, context, state):
+        rewritten = []
+        for msg in context.input_messages:
+            if msg.role == &quot;assistant&quot;:
+                author = getattr(msg, &quot;author_name&quot;, None) or &quot;Another member&quot;
+                rewritten.append(Message(
+                    role=&quot;user&quot;,
+                    text=f&quot;[{author}]: {msg.text}&quot;,
+                ))
+            else:
+                rewritten.append(msg)
+        context.input_messages[:] = rewritten
+</code></pre>
+<p>This is invisible in demos but breaks everything in production. Without it, every agent after the first one produces a continuation of the previous agent's response rather than their own perspective.</p>
+<hr />
+<h2 id="pattern-c-lightweight-as_agent-utility-agents">Pattern C: Lightweight <code>.as_agent()</code> (Utility Agents)</h2>
+<p>The member-service needs a quick agent for stance analysis — no orchestration, just an LLM client with instructions and tools:</p>
+<pre><code class="language-python">client = OllamaChatClient(host=ollama_host, model_id=model_id)
+agent = client.as_agent(
+    name=&quot;StanceAnalyzer&quot;,
+    instructions=STANCE_INSTRUCTIONS,
+    tools=create_member_tools(session),
+)
+</code></pre>
+<p>Use this for utility agents embedded in a service that is not primarily an agent framework application.</p>
+<hr />
+<h2 id="groupchat-structured-fomc-meetings">GroupChat: Structured FOMC Meetings</h2>
+<p>The deliberation phase runs up to 19 agents in a structured five-round meeting using <code>GroupChatBuilder</code> with a custom speaker selector:</p>
+<pre><code class="language-python">from agent_framework_orchestrations import GroupChatBuilder
+
+class _RoundSpeakerSelector:
+    &quot;&quot;&quot;Cycles through a fixed speaker list once.&quot;&quot;&quot;
+    def __init__(self, speaker_names):
+        self._names = speaker_names
+        self._idx = 0
+
+    def __call__(self, state):
+        if self._idx &gt;= len(self._names):
+            return None
+        name = self._names[self._idx]
+        self._idx += 1
+        return name
+
+group_chat = GroupChatBuilder(
+    participants=fw_speakers,
+    selection_func=_RoundSpeakerSelector(speaker_names),
+    max_rounds=len(speaker_names),
+).build()
+
+result = await asyncio.wait_for(
+    group_chat.run(prompt),
+    timeout=max(600, 120 * len(speaker_names)),
+)
+</code></pre>
+<p>The custom selector is important — FOMC meetings are highly structured, not free-form discussions. Different rounds have different speaker pools selected upstream by the <code>FOMCMeetingSpeakerSelector</code>, and the per-round selector simply cycles through the resulting list.</p>
+<p>The dynamic timeout (<code>120 × number of speakers</code>) handles the reality that Ollama serializes inference on a single GPU. Eight speakers at ~120 seconds each need a 16-minute timeout.</p>
+<hr />
+<h2 id="workflowbuilder-graph-based-pipeline-management">WorkflowBuilder: Graph-Based Pipeline Management</h2>
+<p>The full simulation is a multi-phase pipeline modeled as a directed graph with fan-out and fan-in:</p>
+<pre><code class="language-python">from agent_framework import WorkflowBuilder
+
+builder = WorkflowBuilder(start_executor=economy)
+builder.add_edge(economy, beige_book)
+builder.add_edge(beige_book, belief)
+builder.add_fan_out_edges(belief, [mc, llm])
+builder.add_fan_in_edges([mc, llm], comparison)
+builder.add_edge(comparison, persist)
+
+workflow = builder.build()
+</code></pre>
+<p>After belief formation, the pipeline fans out to run Monte Carlo (CPU-bound) and LLM deliberation (GPU-bound) in parallel, then fans in at comparison to merge results. Each <code>Executor</code> receives state as JSON, does its work, and sends state to the next node — checkpoint-friendly by design.</p>
+<p>The deliberation service also uses WorkflowBuilder internally for its meeting phases: workflows within workflows, each level using the same primitives.</p>
+<hr />
+<h2 id="tools-ai_function-for-schema-generation">Tools: @ai_function for Schema Generation</h2>
+<p>Agent tools are decorated with <code>@ai_function</code>, which auto-generates JSON schemas from type annotations:</p>
+<pre><code class="language-python">@ai_function(name=&quot;rag_search&quot;,
+             description=&quot;Semantic search across FOMC documents.&quot;)
+async def rag_search(
+    query: Annotated[str, &quot;Natural-language search query&quot;],
+    n_results: Annotated[int, &quot;Maximum results&quot;] = 5,
+    as_of_date: Annotated[str, &quot;ISO date bound&quot;] = &quot;&quot;,
+) -&gt; str:
+    results = await client.context_search(
+        query=query, as_of_date=as_of_date, top_k=n_results,
+    )
+    return json.dumps(results, default=str)
+</code></pre>
+<p>The type annotations do double duty — type checking for the developer, schema generation for the LLM. The <code>as_of_date</code> parameter ties back to the point-in-time constraint from the economy service.</p>
+<hr />
+<h2 id="lessons-learned">Lessons Learned</h2>
+<p><strong>Three patterns, not one.</strong> ChatAgent for independent parallel work, FrameworkAgent for stateful interactive agents, <code>.as_agent()</code> for lightweight utilities. Knowing which to reach for at which complexity level is the design skill.</p>
+<p><strong>Context providers are the most powerful pattern.</strong> They fire before each agent turn and can rewrite history, inject state, and personalize the conversation. The role-rewriting fix alone justified the entire framework.</p>
+<p><strong>GroupChat needs custom speaker selection.</strong> Default free-form selection does not work for structured protocols. Custom selectors give you control over who speaks when.</p>
+
+<figure>
+    <img src="charts/supervision-drilldown.gif" alt="Supervision page showing LLM deliberation meeting structure, chair opening prompt with system instructions, Powell's opening statement, Employment & Inflation round with 20 agent responses, and Belief Formation opinions" loading="lazy">
+    <figcaption>Supervision page — inspecting agent prompts, responses, and belief formation across deliberation rounds</figcaption>
+</figure>
+<p><strong>Pre-release frameworks require tracking breaking changes.</strong> I ran versions from <code>1.0.0b260130</code> through <code>1.0.0rc2</code>. Import paths changed, API signatures shifted, and the <code>agent-framework</code> package itself split into sub-packages. This is the cost of working at the frontier.</p>
+<p>Subscribe for next week's article on the comparison service — the smallest service in the platform, and arguably the one that makes everything else worth building.</p>
+<p>— Vincent</p>
+
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

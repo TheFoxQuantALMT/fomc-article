@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="A two-agent LLM pipeline that generates 19 distinct FOMC member personas from speech data — stance classification, versioned persona cards, and the stance_offset migration.">
+<meta property="og:title" content="Building a Persona Factory: From Speech Data to 19 Distinct AI Personalities">
+<meta property="og:description" content="A two-agent LLM pipeline that ingests speech data, classifies policy stances, and produces versioned persona cards with tool-augmented database access.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="AI persona, speech analysis, LLM pipeline, FOMC members, stance classification, NLP, persona generation">
+<title>Building a Persona Factory: From Speech Data to 19 Distinct AI Personalities</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="building-a-persona-factory-from-speech-data-to-19-distinct-ai-personalities">Building a Persona Factory: From Speech Data to 19 Distinct AI Personalities</h1>
+<p class="subtitle" role="doc-subtitle">A two-agent LLM pipeline that ingests real speech data, classifies policy stances, and produces versioned persona cards — with tool-augmented database access and the schema migration that fixed backtesting.</p>
+<hr />
+<p>How do you create 19 distinct AI personas that behave like real people — each with their own policy philosophy, rhetorical style, and threshold for dissent? Not a chatbot wearing a name tag, but a structured system that ingests speech data, classifies stances, and produces behavioral instructions that downstream simulation agents consume.</p>
+<p>The member service is 3,000 lines of Python, backed by PostgreSQL with Alembic migrations, and it contains the two-agent LLM pipeline that does the actual persona generation. It is the canonical source of truth for who sits on the FOMC, what they believe, and how those beliefs translate into simulation parameters.</p>
+<hr />
+<h2 id="the-composition-problem">The Composition Problem</h2>
+<p>The FOMC has a complex roster. Seven governors appointed by the president, twelve regional bank presidents, and a rotating voting schedule that changes every January. To simulate any historical meeting accurately, you need to know not just who was on the committee, but who was voting on that specific date.</p>
+<pre><code class="language-python">async def get_voting_members(self, as_of: date):
+    year = as_of.year
+    rot = await self.session.execute(
+        select(VotingRotation.district)
+        .where(and_(VotingRotation.year == year, VotingRotation.is_voting.is_(True)))
+    )
+    rotating_districts = [r[0] for r in rot.all()]
+
+    for m in all_active:
+        if (m.role == &quot;governor&quot;
+            or m.role == &quot;president&quot; and m.district == &quot;new_york&quot;
+            or m.role == &quot;president&quot; and m.district in rotating_districts):
+            voting.append(m)
+</code></pre>
+<p>This mirrors the real FOMC rules: all governors always vote, the New York Fed president always votes (vice chair of the committee), and four of the remaining eleven presidents vote on a rotating schedule. The result is that the simulation can produce a perfectly accurate roster for any date in the database, with each agent tagged <code>is_voting_member: true/false</code>.</p>
+<hr />
+<h2 id="two-agent-pipeline">Two-Agent Pipeline</h2>
+<p>The persona factory chains two specialized agents, each built on the agent framework's <code>OllamaChatClient.as_agent()</code> pattern. All inference runs through Ollama — no cloud dependencies.</p>
+<p><strong>Agent 1: StanceAnalyzer</strong> reads a member's speech summaries and hawk-dove stance history from the database, then synthesizes a stance profile. It classifies the current position (hawkish/dovish/neutral), identifies trend direction, and extracts the policy themes they emphasize most.</p>
+<p><strong>Agent 2: PersonaGenerator</strong> takes that stance profile and produces a full persona card: narrative biography, policy philosophy, communication style, key concerns, <code>stance_offset</code>, and <code>dissent_cost</code>.</p>
+<pre><code class="language-python">class PersonaFactory:
+    async def generate_persona(self, member_id, as_of_date):
+        # Step 1: Analyze stance from speech data
+        stance_profile = await self._run_stance_agent(member_id)
+
+        # Step 2: Generate full persona card
+        persona_text = await self._run_persona_agent(member_id, stance_profile)
+
+        # Step 3: Parse, derive offset, persist
+        persona_data = self._parse_json_response(persona_text)
+
+        if &quot;stance_offset&quot; not in persona_data and &quot;prior_mu&quot; in persona_data:
+            mu = float(persona_data[&quot;prior_mu&quot;])
+            persona_data[&quot;stance_offset&quot;] = round(mu - 4.50, 4)
+
+        svc = PersonaService(self.session)
+        await svc.create(member_id=member_id, as_of_date=as_of_date, **persona_data)
+</code></pre>
+<p>Why two agents instead of one? Separation of concerns. The StanceAnalyzer is a data-heavy retrieval task — querying dozens of speech records and distilling patterns. The PersonaGenerator is a creative writing task — producing natural-language descriptions from a structured profile. Splitting them keeps context windows focused and prompts sharp.</p>
+<hr />
+<h2 id="tool-augmented-database-access">Tool-Augmented Database Access</h2>
+<p>The agents are not just prompt-in, text-out. They have structured access to PostgreSQL through <code>@tool</code>-decorated async functions:</p>
+<pre><code class="language-python">def create_member_tools(session):
+    @tool
+    async def query_speeches(member_id: int, limit: int = 20) -&gt; str:
+        &quot;&quot;&quot;Query recent speech summaries for an FOMC member.&quot;&quot;&quot;
+        stmt = (select(SpeechSummary)
+                .where(SpeechSummary.member_id == member_id)
+                .order_by(SpeechSummary.date.desc())
+                .limit(limit))
+        result = await session.execute(stmt)
+        return json.dumps([{
+            &quot;date&quot;: str(s.date), &quot;title&quot;: s.title,
+            &quot;themes&quot;: s.key_themes, &quot;positions&quot;: s.extracted_positions,
+        } for s in result.scalars().all()])
+
+    @tool
+    async def query_stances(member_id: int) -&gt; str:
+        &quot;&quot;&quot;Query hawk-dove stance history.&quot;&quot;&quot;
+        # Returns last 30 stance records as JSON
+
+    @tool
+    async def get_member_info(member_id: int) -&gt; str:
+        &quot;&quot;&quot;Get basic info: name, title, role, district, term dates.&quot;&quot;&quot;
+
+    return [query_speeches, query_stances, get_member_info]
+</code></pre>
+<p>The critical design decision: selective tool access.</p>
+<pre><code class="language-python">def create_stance_agent(ollama_host, model_id, session):
+    tools = create_member_tools(session)
+    return client.as_agent(
+        name=&quot;StanceAnalyzer&quot;,
+        instructions=STANCE_INSTRUCTIONS,
+        tools=tools,  # All three tools
+    )
+
+def create_persona_agent(ollama_host, model_id, session):
+    tools = create_member_tools(session)
+    return client.as_agent(
+        name=&quot;PersonaGenerator&quot;,
+        instructions=PERSONA_INSTRUCTIONS,
+        tools=[tools[2]],  # Only get_member_info
+    )
+</code></pre>
+<p>The PersonaGenerator only gets <code>get_member_info</code> — not speech data. It should synthesize from the already-analyzed stance profile, not re-derive conclusions from raw data. Tool access is a form of prompt engineering.</p>
+<hr />
+<h2 id="versioned-personas">Versioned Personas</h2>
+<p>Personas are not updated in place. Every generation run creates a new row with an <code>as_of_date</code>:</p>
+<pre><code class="language-python">class AgentPersona(Base):
+    id = Column(Integer, primary_key=True)
+    member_id = Column(Integer, ForeignKey(&quot;members.members.id&quot;))
+    as_of_date = Column(Date, nullable=False)
+    philosophy = Column(Text)
+    communication_style = Column(Text)
+    stance_offset = Column(Float)
+    dissent_cost = Column(Float)
+    created_at = Column(DateTime, default=func.now())
+</code></pre>
+<p>This matters for backtesting. If you simulate the March 2024 meeting, you want personas built from data available before that meeting, not contaminated by hindsight. Versioning gives you full temporal reproducibility.</p>
+<hr />
+<h2 id="the-stance_offset-migration">The stance_offset Migration</h2>
+<p>Early in development, agent priors were stored as <code>prior_mu</code> — an absolute target rate. Jerome Powell might have <code>prior_mu: 5.25</code>. This worked for a single date but broke for backtesting. A hawk who wanted 5.25% in March 2024 was not the same kind of hawk who wanted 5.25% in March 2021 when rates were near zero.</p>
+<p>The fix: <code>stance_offset</code> — a relative displacement from the current federal funds rate. A hawk with <code>+0.50</code> wants rates 50bp above wherever they are now. A dove with <code>-0.75</code> wants rates 75bp lower. Rate-regime-invariant — the same offset produces sensible behavior whether the FFR is 0.25% or 5.50%.</p>
+<pre><code class="language-python">def upgrade():
+    op.add_column(&quot;agent_personas&quot;,
+        sa.Column(&quot;stance_offset&quot;, sa.Float(), nullable=True),
+        schema=&quot;members&quot;)
+
+    # Backfill from existing prior_mu values
+    op.execute(&quot;&quot;&quot;
+        UPDATE members.agent_personas
+        SET stance_offset = ROUND(CAST(prior_mu - 4.50 AS NUMERIC), 4)
+        WHERE prior_mu IS NOT NULL AND stance_offset IS NULL
+    &quot;&quot;&quot;)
+</code></pre>
+<p>The column is nullable and the old <code>prior_mu</code> stays for backward compatibility. Both the persona pipeline and the sync service check <code>stance_offset</code> first and derive from <code>prior_mu</code> as fallback. Old personas work without manual intervention.</p>
+<hr />
+<h2 id="sync-to-git-tracked-yaml">Sync to Git-Tracked YAML</h2>
+<p>Generated personas live in PostgreSQL, but downstream services consume them from <code>agents.yaml</code> — a git-tracked file in the shared <code>fomc-common</code> directory.</p>
+<p><code>POST /v1/sync/agents-yaml</code> reads all active members with their latest persona, serializes to YAML, and computes a diff:</p>
+<pre><code class="language-python">async def sync_agents_yaml(self, target_path):
+    existing = yaml.safe_load(open(target_path)) or {}
+    new_data = await self.generate_agents_yaml()
+
+    added = [k for k in new_agents if k not in existing_agents]
+    removed = [k for k in existing_agents if k not in new_agents]
+    modified = [k for k in new_agents
+                if k in existing_agents and new_agents[k] != existing_agents[k]]
+</code></pre>
+<p>Why not query the member service at runtime? Two reasons. First, <code>agents.yaml</code> is git-tracked — persona changes produce visible, reviewable diffs. You can see "Jerome Powell's stance_offset changed from +0.25 to +0.50 because we regenerated with new speech data." Second, it decouples the simulation from the member service's availability. The sync is explicit, keeping the human in the loop on persona updates.</p>
+<hr />
+<h2 id="lessons-learned">Lessons Learned</h2>
+<p><strong>Two-agent pipelines beat monolithic prompts.</strong> Splitting analysis from generation keeps each agent's context focused.</p>
+<p><strong>Tool access is a design lever.</strong> Restricting which tools each agent can use is as important as the prompt itself.</p>
+<p><strong>Relative parameters survive regime changes.</strong> Any parameter encoding a belief about the world should be relative to the world's current state.</p>
+<p><strong>Versioned personas enable reproducibility.</strong> Every generation run creates a new row with a date — you can always reconstruct what the simulation "believed" about a member at any point.</p>
+<p><strong>Sync to files, not just APIs.</strong> Git-tracked YAML creates a reviewable audit trail that turned out to be more valuable for debugging than any logging framework.</p>
+<p>The member service determines simulation quality more directly than any other component. Get the personas wrong, and every downstream deliberation, vote, and policy outcome is wrong in the same way.</p>
+<p>Subscribe for the series conclusion — what I learned building this system, and the first live FOMC analysis.</p>
+<p>— Vincent</p>
+
+    
+    <section class="charts">
+        <h2 id="charts">Charts</h2>
+        
+        <figure>
+            <img src="charts/05_agent_dot_plot.png" alt="FOMC agent dot plot showing rate preferences for all 19 members" loading="lazy">
+            <figcaption>Agent dot plot — 19 members positioned by rate preference and uncertainty</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/06_hawk_dove_spectrum.png" alt="Hawk-dove spectrum showing policy stance classification for each FOMC member" loading="lazy">
+            <figcaption>Hawk-dove spectrum — stance classification from speech data</figcaption>
+        </figure>
+
+        <figure>
+            <img src="charts/hawkdove-tour.gif" alt="Hawk-Dove Analysis dashboard tour showing committee stance gauge, diverging spectrum chart, sentiment timeline, member stance cards, and live text classifier" loading="lazy">
+            <figcaption>Hawk-Dove dashboard — live stance analysis with committee gauge, member cards, and text classifier</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/07_stance_distribution.png" alt="Stance distribution histogram showing the spread of hawk-dove scores across the committee" loading="lazy">
+            <figcaption>Stance distribution — committee-wide hawk-dove score histogram</figcaption>
+        </figure>
+        
+    </section>
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

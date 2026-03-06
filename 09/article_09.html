@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Docker Compose orchestration for a 10-service AI platform — health check cascades, JWT authentication, inter-service communication, and infrastructure that deploys in one command.">
+<meta property="og:title" content="25 Containers, One Make Command">
+<meta property="og:description" content="Docker Compose orchestration, health check cascades, JWT authentication, and why the most important file in the project is the Makefile.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="Docker Compose, microservices, AI infrastructure, health checks, JWT authentication, DevOps, FastAPI">
+<title>25 Containers, One Make Command: Infrastructure for AI Systems That Actually Work</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="25-containers-one-make-command-infrastructure-for-ai-systems-that-actually-work">25 Containers, One Make Command: Infrastructure for AI Systems That Actually Work</h1>
+<p class="subtitle" role="doc-subtitle">Docker Compose orchestration, health check cascades, inter-service communication patterns, JWT authentication, and why the most important file in the project is the Makefile.</p>
+<hr />
+<p>Here is what happens when you type <code>make up</code>:</p>
+<p>Docker Compose reads a 596-line YAML file. It builds 10 application images. It pulls 15 infrastructure images. It starts 25 containers in dependency order on a single bridge network, waiting for health checks to cascade through the service graph. Sixty seconds later, you have a fully operational FOMC simulation platform with observability, authentication, reverse proxy, and log aggregation.</p>
+<p>Getting to that point was harder than building any single microservice.</p>
+<hr />
+<h2 id="the-service-map">The Service Map</h2>
+<p>The <code>docker-compose.yaml</code> defines 25 services across three categories:</p>
+<p><strong>Application (10):</strong> economy (9000), beige-book (8001), belief-formation (8002), mc-simulation (8003), llm-deliberation (8004), comparison (8005), hawk-dove (8006), member-service (8007), orchestrator (8010), dashboard (3002).</p>
+<p><strong>Infrastructure (6):</strong> PostgreSQL (5432), Qdrant (6333), Neo4j (7474/7687), SearXNG (8888), nginx (80/443), CloudBeaver (8978).</p>
+<p><strong>Observability (9):</strong> Prometheus (9090), AlertManager (9093), Grafana (3000), Loki (3100), Promtail, node-exporter, cadvisor, postgres-exporter, nginx-exporter.</p>
+<p>Each application service follows the same pattern: FastAPI + Uvicorn container, build context at the project root (so the Dockerfile can <code>COPY fomc-common/</code> — the shared library), environment variables referencing <code>.env</code> for secrets, and <code>PYTHONUNBUFFERED=1</code> (without it, Python buffers stdout and logs do not appear in <code>docker compose logs</code> until the buffer flushes — I lost two hours on that one).</p>
+<hr />
+<h2 id="health-check-cascades">Health Check Cascades</h2>
+<p><code>depends_on</code> with <code>condition: service_healthy</code> creates an implicit dependency DAG:</p>
+<pre><code>PostgreSQL (healthy when accepting connections)
+  → economy-service (healthy when /health returns 200)
+    → orchestrator (needs economy + all phase services)
+
+Qdrant (healthy when REST API responds)
+  → economy-service, belief-formation
+
+Ollama (healthy when /api/tags responds)
+  → all LLM-dependent services
+</code></pre>
+<p>The orchestrator sits at the top of the graph. It depends on all 8 pipeline services being healthy before accepting simulation requests.</p>
+<p>I tuned the health check parameters through trial and error. The <code>start_period</code> is critical: services that load ML models or run database migrations need 30-60 seconds before their first health check. Without a generous start_period, Docker marks them unhealthy during initialization and restarts them in an infinite loop:</p>
+<pre><code class="language-yaml">healthcheck:
+  test: [&quot;CMD&quot;, &quot;curl&quot;, &quot;-f&quot;, &quot;http://localhost:9000/health&quot;]
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 60s
+</code></pre>
+<hr />
+<h2 id="the-makefile-260-lines-of-developer-experience">The Makefile: 260 Lines of Developer Experience</h2>
+<p>The Makefile is not just a convenience wrapper. It encodes the project's operational knowledge:</p>
+<pre><code class="language-makefile">simulate: guard-DATE
+    @echo &quot;Running simulation for $(DATE)...&quot;
+    $(call get-token)
+    curl -s -X POST &quot;http://localhost:8010/simulate/&quot; \
+        -H &quot;Authorization: Bearer $(TOKEN)&quot; \
+        -d '{&quot;meeting_date&quot;: &quot;$(DATE)&quot;}' | jq .
+
+# Phase-by-phase execution for debugging
+phase-0a: guard-DATE
+    curl -s &quot;http://localhost:9000/v1/snapshot/$(DATE)&quot; | jq .
+
+phase-2-mc: guard-DATE
+    curl -s -X POST &quot;http://localhost:8003/v1/simulate&quot; \
+        -d '{&quot;meeting_date&quot;: &quot;$(DATE)&quot;}' | jq .
+
+# Generic variable guard
+guard-%:
+    @if [ -z '${${*}}' ]; then \
+        echo &quot;ERROR: Variable $* is not set.&quot;; exit 1; fi
+</code></pre>
+<p>The <code>guard-%</code> pattern checks required variables — <code>make simulate</code> without <code>DATE=2026-01-28</code> gives a clear error instead of a cryptic curl failure. The phase-by-phase targets exist for debugging — when a simulation fails, they let me isolate which phase broke without re-running the entire pipeline.</p>
+<hr />
+<h2 id="inter-service-communication">Inter-Service Communication</h2>
+<p>Every service communicates over HTTP using <code>httpx.AsyncClient</code> with a singleton pattern:</p>
+<pre><code class="language-python">_ollama_client: httpx.AsyncClient | None = None
+
+def _get_ollama_client():
+    global _ollama_client
+    if _ollama_client is None or _ollama_client.is_closed:
+        _ollama_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(
+                connect=5.0, read=settings.ollama_timeout,
+                write=10.0, pool=5.0,
+            ),
+            limits=httpx.Limits(
+                max_connections=2, max_keepalive_connections=2,
+            ),
+        )
+    return _ollama_client
+</code></pre>
+<p>The <code>Limits</code> object caps connections at two — all Ollama-bound services serialize GPU access through <code>asyncio.Semaphore</code>, and more connections than semaphore slots just pile up requests for no benefit. The four-part timeout gives fine-grained control: 5-second connect catches DNS failures fast, while read timeout varies by service based on expected LLM latency.</p>
+<hr />
+<h2 id="service-discovery-deliberately-boring">Service Discovery: Deliberately Boring</h2>
+<p>No Consul, no etcd, no service mesh. Every URL is an environment variable injected through <code>docker-compose.yaml</code>:</p>
+<pre><code class="language-yaml">fomc-orchestrator:
+  environment:
+    - ECONOMY_SERVICE_URL=http://fomc-economy-service:9000
+    - BEIGE_BOOK_URL=http://fomc-beige-book:8000
+    - MC_SIMULATION_URL=http://fomc-mc-simulation:8003
+</code></pre>
+<p>Those hostnames resolve through Docker's built-in DNS on the shared bridge network (internal container ports — host-mapped ports differ, e.g., beige-book maps 8001&#8594;8000). Environment variables are the simplest possible abstraction for "where is this service" — every language, every framework, every deployment target understands them.</p>
+<hr />
+<h2 id="jwt-authentication">JWT Authentication</h2>
+<p>The orchestrator is the only service exposed to external callers. All inter-service communication is authenticated via JWT:</p>
+<pre><code class="language-python">def create_token(client_id: str) -&gt; str:
+    payload = {
+        &quot;sub&quot;: client_id,
+        &quot;iat&quot;: datetime.utcnow(),
+        &quot;exp&quot;: datetime.utcnow() + timedelta(hours=24),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=&quot;HS256&quot;)
+</code></pre>
+<p>The JWT secret is generated via <code>./scripts/generate-jwt-secret.sh</code> (256-bit random string) and never appears in source control. The authentication flow: POST to <code>/auth/token</code>, receive the token, include <code>Authorization: Bearer</code> on subsequent requests.</p>
+<hr />
+<h2 id="dual-track-caching-with-phase-locking">Dual-Track Caching with Phase Locking</h2>
+<p>Simulations are expensive. A recent run for the January 2026 meeting clocked 12.3 minutes end-to-end: 2.9 minutes for belief formation (19 agents, each making one Ollama call), 1 second for the Monte Carlo track (10,000 iterations, pure NumPy), and 9.5 minutes for LLM deliberation (5 rounds, 22 statements through Ollama). The GPU-bound phases dominate -- the Monte Carlo track, which uses zero LLM calls, finishes in the time it takes a single agent to generate one paragraph. The orchestrator implements a dual-track cache with phase locking to avoid re-running these expensive phases:</p>
+<pre><code class="language-python">class PhaseLock:
+    &quot;&quot;&quot;Prevent concurrent execution of the same phase for the same date.&quot;&quot;&quot;
+
+    async def execute_or_wait(self, meeting_date, phase, fn, **kwargs):
+        key = f&quot;{meeting_date}:{phase}&quot;
+        if key in self._cache:
+            return self._cache[key]
+
+        if key not in self._locks:
+            self._locks[key] = asyncio.Lock()
+
+        async with self._locks[key]:
+            if key in self._cache:
+                return self._cache[key]  # Another coroutine computed it
+            result = await fn(**kwargs)
+            self._cache[key] = result
+            return result
+</code></pre>
+<p>If two requests hit the same meeting date simultaneously, the second waits for the first to finish rather than running a duplicate simulation. The double-check after acquiring the lock handles the race condition.</p>
+<hr />
+<h2 id="one-flat-network">One Flat Network</h2>
+<pre><code class="language-yaml">networks:
+  fomc-network:
+    driver: bridge
+</code></pre>
+<p>All 25 containers share a single <code>fomc-network</code> bridge. Every service can reach every other service by container name via Docker's built-in DNS. This is deliberately simple — at the scale of a single-machine development platform, network segmentation adds operational complexity without meaningful security benefit. In a production deployment, splitting into separate <code>frontend</code>, <code>backend</code>, <code>data</code>, and <code>monitoring</code> networks (so the dashboard cannot reach PostgreSQL directly, and Grafana cannot hit application services) would be a worthwhile hardening step.</p>
+<hr />
+<h2 id="observability-stack">Observability Stack</h2>
+<p>Every service exposes a <code>/metrics</code> endpoint in Prometheus format. A <code>promtail</code> sidecar ships container logs to Loki. Grafana dashboards (provisioned from <code>./monitoring/grafana/dashboards/</code>) show:</p>
+<ul>
+<li>Request latency per service (P50, P95, P99)</li>
+<li>LLM inference duration distribution</li>
+<li>Container memory and CPU usage</li>
+<li>Simulation pipeline phase timings</li>
+<li>Error rates and health check status</li>
+</ul>
+<p>AlertManager sends notifications when a service's error rate exceeds threshold or when LLM inference latency exceeds 5 minutes.</p>
+<hr />
+<h2 id="lessons-learned">Lessons Learned</h2>
+<p><strong><code>PYTHONUNBUFFERED=1</code> is non-negotiable.</strong> Without it, you are debugging phantom "missing logs" for hours.</p>
+<p><strong>Health check start_period prevents restart loops.</strong> Services loading ML models need 30-60 seconds before their first check. Without this, Docker marks them unhealthy during initialization and restarts them forever.</p>
+<p><strong>Phase-by-phase execution targets save debugging time.</strong> When a 5-minute simulation fails, you need to isolate which phase broke without re-running everything.</p>
+<p><strong>Boring service discovery works.</strong> Environment variables + Docker DNS. No service mesh required at this scale. Add complexity when you need it, not before.</p>
+<p><strong>Dual-track caching with phase locking prevents duplicate work.</strong> The double-check after lock acquisition handles the race condition that single-check patterns miss.</p>
+<p>The infrastructure is the least visible part of the platform and arguably the most important. It is the difference between "I built 10 microservices" and "I built 10 microservices that start in 60 seconds, communicate reliably, and can be debugged when things break."</p>
+<p>Subscribe for the series conclusion — the dashboard, backtesting results, and what we learn when we run this system against 6 years of actual FOMC decisions.</p>
+<p>— Vincent</p>
+
+    
+    <section class="charts">
+        <h2 id="charts">Charts</h2>
+        
+        <figure>
+            <img src="charts/01_pipeline_flow.png" alt="FOMC simulation pipeline flow showing 5 phases from data collection through comparison" loading="lazy">
+            <figcaption>Pipeline flow — 5 phases from data collection to statistical comparison</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/18_service_dependency_dag.png" alt="Service dependency DAG showing 3 tiers: application services, infrastructure, and observability" loading="lazy">
+            <figcaption>Service dependency graph — health check cascade across 25 containers</figcaption>
+        </figure>
+        
+    </section>
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Orchestrating 96 parallel LLM calls on a single GPU to generate a synthetic Federal Reserve Beige Book — batched inference, bounded concurrency, and graceful degradation.">
+<meta property="og:title" content="96 AI Agents, One GPU: Orchestrating a Synthetic Federal Reserve Beige Book">
+<meta property="og:description" content="Multi-agent coordination, bounded concurrency against a single GPU, batched vs. granular LLM strategies, and why the first version was catastrophically slow.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="AI agents, GPU inference, Beige Book, Federal Reserve, LLM orchestration, bounded concurrency, Ollama">
+<title>96 AI Agents, One GPU: Orchestrating a Synthetic Federal Reserve Beige Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="96-ai-agents-one-gpu-orchestrating-a-synthetic-federal-reserve-beige-book">96 AI Agents, One GPU: Orchestrating a Synthetic Federal Reserve Beige Book</h1>
+<p class="subtitle" role="doc-subtitle">Multi-agent coordination, bounded concurrency against a single GPU, batched vs. granular LLM strategies, and why the first version was catastrophically slow.</p>
+<hr />
+<p>Eight times a year, the Federal Reserve publishes the Beige Book — a qualitative survey of economic conditions across all twelve districts. Unlike hard data in jobs reports or CPI releases, the Beige Book trades in anecdote and narrative: what are business contacts actually saying about hiring, spending, and whether the vibes are good or bad?</p>
+<p>My platform needs this for every simulation date — including dates where no official Beige Book was published. So I built a service that generates synthetic Beige Book reports using a coordinated team of AI agents. It is 13,678 lines of Python, the most architecturally complex service in the system, and the engineering challenges it presented — multi-agent orchestration, bounded concurrency against a single GPU, graceful degradation at every level — are problems that do not show up in tutorial projects.</p>
+<hr />
+<h2 id="four-agent-types-one-district-pipeline">Four Agent Types, One District Pipeline</h2>
+<p>Each of the 12 districts runs a sequential pipeline of four specialized agents:</p>
+<p><strong>IntelligenceAgent</strong> — The data gatherer. It calls the Economy Service to fetch district-level indicators, recent news, historical minutes, and past Beige Book editions. All date-bounded — agents only see information available on the report date.</p>
+<p><strong>SectorAnalysts</strong> — A team of eight parallel agents, each specializing in one economic sector: Consumer Spending, Manufacturing, Labor Markets, Real Estate, Banking &amp; Finance, Prices &amp; Inflation, Agriculture &amp; Energy, and Services &amp; Transportation. Each analyst receives the intelligence report and produces a structured analysis with summary, key findings, outlook label, and confidence score.</p>
+<p><strong>SynthesizerAgent</strong> — Takes the eight sector analyses and weaves them into a coherent district narrative. No tools — works purely from sector outputs. Determines an overall outlook using weighted sector scores.</p>
+<p><strong>VerificationAgent</strong> — The fact-checker. Cross-references claims in the synthesized report against source documents using TF-IDF cosine similarity. Claims with insufficient source support get flagged.</p>
+<p>The temperature tuning reflects each role: intelligence gathering at 0.3 (factual, deterministic), sector analysis at 0.5 (moderate creativity for narrative generation), verification back to 0.3 (rigorous fact-checking).</p>
+<hr />
+<h2 id="the-concurrency-challenge">The Concurrency Challenge</h2>
+<p>Here is where theory meets hardware. In "granular" mode, each district spawns 8 sector analysts — that is 96 potential concurrent LLM calls, plus intelligence, synthesis, and verification stages. On paper, you want maximum parallelism. In practice, you are hitting a single Ollama instance with limited GPU memory.</p>
+<p>The first version used <code>asyncio.gather</code> across all 12 districts. It looked beautiful in the code and was catastrophically slow. Dozens of LLM calls queued behind a global semaphore, and per-district timeouts fired while tasks were still waiting their turn.</p>
+<p>The solution was counterintuitive: process districts sequentially.</p>
+<pre><code class="language-python">async def execute_all(self, district_configs):
+    &quot;&quot;&quot;Districts sequentially — each gets exclusive GPU access.
+    Avoids the stampede problem where parallel districts queue
+    dozens of LLM calls, causing per-district timeouts.&quot;&quot;&quot;
+    final_results = []
+    for dc in district_configs:
+        workflow = DistrictWorkflow(self.config, dc, ...)
+        result = await asyncio.wait_for(
+            workflow.execute(),
+            timeout=self.config.timeout_per_district,
+        )
+        final_results.append(result)
+</code></pre>
+<p>Sequential district processing with intra-district parallelism was 3x faster on a single-GPU setup because it eliminated queue contention. Within each district, the sector analysts can run concurrently since the intelligence data is already fetched. The bottleneck is at the LLM call level, not the data preparation level. For reference, the LLM deliberation service (a simpler workload with 22 statements across 5 rounds) takes 9.5 minutes on the same GPU -- so 12 districts with intelligence gathering, sector analysis, synthesis, and verification per district lands in the 10-20 minute range depending on model load.</p>
+<hr />
+<h2 id="batched-mode-the-single-most-impactful-optimization">Batched Mode: The Single Most Impactful Optimization</h2>
+<p>The "batched" analysis mode covers all sectors in a single LLM call per district — one prompt, one response, all sectors at once. Twelve calls total instead of ninety-six.</p>
+<pre><code class="language-python">BATCHED_SYSTEM_PROMPT = &quot;&quot;&quot;\
+You are writing the Federal Reserve Beige Book.
+Write all 8 sector sections in a single response.
+Use these exact section headers:
+
+### Consumer Spending
+### Manufacturing
+### Labor Markets
+### Real Estate and Construction
+### Banking and Finance
+...
+&quot;&quot;&quot;
+</code></pre>
+<p>The response is parsed back into individual <code>SectorAnalysis</code> objects using regex section splitting:</p>
+<pre><code class="language-python">_HEADING_TO_SECTOR = {
+    &quot;consumer spending&quot;: &quot;consumer_spending&quot;,
+    &quot;manufacturing&quot;: &quot;manufacturing&quot;,
+    &quot;labor markets&quot;: &quot;labor_markets&quot;,
+    # Handles both &quot;Banking and Finance&quot; and &quot;Banking &amp; Finance&quot;
+}
+</code></pre>
+<p>If the batched parse returns fewer than 4 sectors — the model sometimes drops sections or produces unparseable output — the service falls back to the granular pipeline for missing sectors. This graceful degradation pattern appears throughout the service.</p>
+<hr />
+<h2 id="pipelined-execution-1-ahead-prefetching">Pipelined Execution: 1-Ahead Prefetching</h2>
+<p>Batched mode goes further with a <code>PipelinedExecutor</code> that uses an <code>asyncio.Queue</code> for 1-ahead data prefetching. While district N is running its LLM call, district N+1's intelligence data is being fetched from the Economy Service in parallel:</p>
+<pre><code class="language-python">class PipelinedExecutor:
+    async def execute_all(self, district_configs):
+        prefetch_queue = asyncio.Queue(maxsize=1)
+
+        async def prefetch_producer():
+            for dc in district_configs:
+                intel = await _run_intelligence(self.config, dc, ...)
+                await prefetch_queue.put((dc, intel, None))
+            await prefetch_queue.put(None)  # sentinel
+
+        producer_task = asyncio.create_task(prefetch_producer())
+
+        while True:
+            item = await prefetch_queue.get()
+            if item is None:
+                break
+            dc, intelligence, _ = item
+            # Run batched analysis, synthesis, verification...
+</code></pre>
+<p>The <code>maxsize=1</code> is critical — at most one district's intelligence data is buffered ahead, preventing memory bloat when the LLM is slow.</p>
+<hr />
+<h2 id="cross-district-analysis">Cross-District Analysis</h2>
+<p>After all districts complete, the <code>ComparisonTableGenerator</code> produces the national picture: outlook comparison tables (12 districts × 8 sectors), numerical heatmap data, and theme frequency analysis that identifies cross-cutting patterns like "tight labor market" or "wage pressures" appearing across multiple regions.</p>
+<hr />
+<h2 id="background-processing">Background Processing</h2>
+<p>A full 12-district report takes 10-20 minutes. The API supports background mode — the endpoint returns immediately with a <code>task_id</code>, and clients poll for progress:</p>
+<pre><code class="language-python">@app.get(&quot;/analysis&quot;)
+async def run_analysis(request, date, background=False):
+    if background:
+        task_id = uuid.uuid4().hex[:12]
+        progress.set(task_id, {&quot;status&quot;: &quot;running&quot;, &quot;pct&quot;: 0})
+        asyncio.create_task(_run_bg())
+        return JSONResponse({&quot;task_id&quot;: task_id, &quot;status&quot;: &quot;started&quot;})
+</code></pre>
+<p>The <code>on_district_done</code> callback fires after each district, giving the dashboard sub-district progress granularity in real time.</p>
+<hr />
+<h2 id="lessons-learned">Lessons Learned</h2>
+<p><strong>Concurrency must match hardware, not theory.</strong> Sequential district processing with intra-district parallelism was 3x faster than full parallelism on a single GPU. The correct concurrency model depends on your bottleneck.</p>
+<p><strong>LLM calls need graceful degradation at every level.</strong> Batched mode falls back to granular if parsing fails. Granular falls back to rule-based output if the LLM is unavailable. The verification agent falls back from TF-IDF to keyword overlap if scikit-learn is missing. Every LLM call has a non-LLM fallback.</p>
+<p><strong>Structured output from LLMs is a parsing problem, not a prompting problem.</strong> Getting reliable 8-section markdown required robust parsing — regex section splitting, fuzzy heading matching, default values for missing fields — not more elaborate prompts.</p>
+<p><strong>Background processing is table stakes for multi-minute operations.</strong> The <code>task_id</code> + progress polling pattern is simple to implement and dramatically improves the user experience versus long-running HTTP requests that timeout.</p>
+<p>The Beige Book service is the piece of this platform I am most proud of — not because it is flashiest, but because it forced me to solve real distributed systems problems in the context of something genuinely novel.</p>
+<p>Subscribe for next week's deep dive into agent framework patterns — three agent creation patterns, GroupChat orchestration, and the subtle bug that makes multi-agent conversations collapse.</p>
+<p>— Vincent</p>
+
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

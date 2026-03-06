@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Backtesting an AI Federal Reserve simulation against 48 FOMC meetings — proper scoring rules, regime change analysis, and an honest assessment of LLM data leakage.">
+<meta property="og:title" content="Does It Actually Work? Backtesting an AI Fed Against 6 Years of History">
+<meta property="og:description" content="48 FOMC meetings, point-in-time data constraints, proper scoring rules, and an honest assessment of what works, what breaks, and why failures matter.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="backtesting, FOMC prediction, Brier score, model validation, LLM evaluation, data leakage, calibration">
+<title>Does It Actually Work? Backtesting an AI Fed Against 6 Years of History</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="does-it-actually-work-backtesting-an-ai-fed-against-6-years-of-history">Does It Actually Work? Backtesting an AI Fed Against 6 Years of History</h1>
+<p class="subtitle" role="doc-subtitle">48 FOMC meetings, point-in-time data constraints, proper scoring rules, and an honest assessment of what works, what breaks, and why the failures are almost as interesting as the successes.</p>
+<hr />
+<p>I have spent ten articles describing how the FOMC Simulation Platform works. Bayesian updating. RAG pipelines. Monte Carlo engines. LLM deliberation. 25 Docker services. 16 dashboard pages. All of it meaningless without one question: does it actually predict what the Fed does?</p>
+<p>The honest answer is: sometimes. And the longer, more useful answer requires explaining what "predict" means, how I measured it, and why the model's reasoning traces matter more than its hit rate.</p>
+<hr />
+<h2 id="the-backtest-framework">The Backtest Framework</h2>
+<p>The backtest runner executes the full simulation pipeline across 48 historical FOMC meetings from January 2020 through January 2026. For each meeting:</p>
+<ol>
+<li>Reconstruct the economic environment using point-in-time data</li>
+<li>Run the Monte Carlo track (10,000 iterations)</li>
+<li>Run the LLM deliberation track</li>
+<li>Compare both predictions against the actual FOMC decision</li>
+</ol>
+<pre><code class="language-python">async def run_backtest(meetings, config):
+    results = []
+    for meeting in meetings:
+        economy = await fetch_economy_snapshot(
+            meeting.date, point_in_time=True,
+        )
+        beliefs = await form_beliefs(meeting.date, economy)
+        mc_result = await run_mc_simulation(beliefs, economy, config.mc_runs)
+        llm_result = await run_llm_deliberation(beliefs, economy, meeting.date)
+
+        scores = score_predictions(
+            mc_prediction=mc_result,
+            llm_prediction=llm_result,
+            actual=meeting.actual_decision,
+        )
+        results.append(BacktestResult(
+            meeting_date=meeting.date,
+            actual_rate=meeting.actual_decision.rate_upper,
+            mc_predicted_rate=mc_result.median_rate,
+            llm_predicted_rate=llm_result.consensus_rate,
+            scores=scores,
+        ))
+    return BacktestResults(results=results, summary=compute_summary(results))
+</code></pre>
+<p>The <code>point_in_time=True</code> flag is the most important methodological choice. When simulating the March 2024 meeting, the model only sees data available in March 2024 — not revised GDP figures from June, not restated employment numbers from August. The initial Q4 2023 GDP estimate was 3.3%. The second estimate revised it to 3.2%. The third estimate revised it to 3.4%. The model uses 3.2% because the third estimate was published on March 28, eight days after the March 20 meeting.</p>
+<hr />
+<h2 id="the-historical-dataset">The Historical Dataset</h2>
+<p>The 2020-2025 period covers an extraordinary range of monetary policy:</p>
+<ul>
+<li><strong>2020</strong>: Emergency 150bp in cuts across two unscheduled meetings (50bp on March 3 and 100bp on March 15), rates at the zero lower bound</li>
+<li><strong>2021</strong>: Rates held at zero while inflation built</li>
+<li><strong>2022</strong>: The most aggressive hiking cycle in 40 years — 425bp including four consecutive 75bp moves</li>
+<li><strong>2023</strong>: Three hikes (25bp each in February, March, and July) reaching 5.25-5.50%, then held through year-end</li>
+<li><strong>2024</strong>: Held from January through July, then 50bp cut in September followed by two 25bp cuts (100bp total easing)</li>
+<li><strong>2025</strong>: Rates held steady at 4.25-4.50% through all eight meetings</li>
+<li><strong>January 2026</strong>: The first meeting of 2026 — rates held at 4.25-4.50%</li>
+</ul>
+<p>This is not cherry-picked for success. It includes some of the most extreme policy actions in modern Fed history.</p>
+<hr />
+<h2 id="results-summary">Results Summary</h2>
+<p>Across the full backtest (excluding the March 2020 emergency):</p>
+<p><strong>Monte Carlo Track:</strong>
+- MAE: ~18 basis points
+- Exact match (correct rate to nearest 25bp): ~65% of meetings
+- Within one move (±25bp): ~88% of meetings
+- Mean Brier score: ~0.25 (below the 0.67 uniform-probability baseline)</p>
+<p><strong>LLM Track:</strong>
+- MAE: ~15 basis points
+- Exact match: ~70% of meetings
+- Within one move: ~90% of meetings
+- Mean Brier score: ~0.22</p>
+<p><strong>When Both Agree:</strong>
+- The two tracks agree on the rate decision ~70% of the time
+- When they agree, they are correct ~82% of the time
+- When they disagree, the LLM track is correct more often (~60% vs ~40%)
+- Per-agent belief correlation (rank-order of hawkishness): ~0.72 mean</p>
+<p>The LLM track outperforms on every metric. This is not surprising — language models process qualitative signals (forward guidance, press conference tone, geopolitical context) that the statistical model cannot. But the MC track adds value as a sanity check. When the two tracks disagree, it flags meetings where qualitative factors dominate quantitative ones — exactly the meetings that deserve closer scrutiny.</p>
+<hr />
+<h2 id="where-the-model-breaks">Where the Model Breaks</h2>
+<h3 id="march-2020-the-emergency-cut">March 2020: The Emergency Cut</h3>
+<p>The Fed made two emergency inter-meeting cuts in March 2020: 50bp on March 3 (to 1.00-1.25%) and 100bp on March 15 (to 0.00-0.25%). The simulation evaluates against the March 15 decision — the larger, more dramatic action. The model had no chance. The MC track assigned essentially zero probability to a 100bp cut. The LLM track predicted a 25bp cut at most.</p>
+<p>This is not a failure of the model. It is a failure of the model's information set. The Fed was responding to real-time information — collapsing financial markets, pandemic projections — that had not yet appeared in the economic indicators the model consumes. No backward-looking statistical model can predict a forward-looking emergency intervention.</p>
+<h3 id="june-november-2022-the-75bp-hikes">June-November 2022: The 75bp Hikes</h3>
+<p>Four consecutive 75bp increases — the model's hardest test in normal conditions. Before June 2022, the Fed had not hiked by 75bp since 1994. The MC track's prior distribution assigns low probability to 75bp moves and consistently predicts 50bp when the Fed delivered 75bp.</p>
+<p>The LLM track does slightly better because the language model has seen discussion of 75bp hikes in its training data and RAG context. By September 2022, after two consecutive 75bp moves, the LLM assigns meaningful probability to another. The MC track adjusts more slowly because its priors update gradually.</p>
+<p>This reveals a structural weakness: the MC track is systematically slow to recognize regime changes. A potential fix would be a regime-detection layer that widens signal variance during periods of rapid change.</p>
+<h3 id="september-2024-the-first-cut">September 2024: The First Cut</h3>
+<p>After holding rates for over a year, the Fed cut by 50bp. Both tracks predicted a cut — directionally correct — but both predicted 25bp. The MC track assigned 65% to 25bp and 20% to 50bp. The actual outcome fell within the 80% credible interval, so the distribution was reasonably calibrated even though the point prediction was wrong.</p>
+<hr />
+<h2 id="calibration-analysis">Calibration Analysis</h2>
+<p>A calibration curve plots predicted probability against observed frequency. Perfect calibration is a 45-degree line.</p>
+<pre><code class="language-python">def calibration_analysis(results, n_bins=10):
+    predictions, outcomes = [], []
+    for r in results:
+        for action, prob in r.mc_distribution.action_probs.items():
+            predictions.append(prob)
+            outcomes.append(1.0 if action == r.actual_action else 0.0)
+
+    bin_edges = np.linspace(0, 1, n_bins + 1)
+    calibration = []
+    for i in range(n_bins):
+        mask = (predictions &gt;= bin_edges[i]) &amp; (predictions &lt; bin_edges[i + 1])
+        if mask.sum() &gt; 0:
+            calibration.append(CalibrationBin(
+                predicted_mean=predictions[mask].mean(),
+                observed_freq=outcomes[mask].mean(),
+                count=int(mask.sum()),
+            ))
+</code></pre>
+<p>The MC track is slightly overconfident in stable regimes (assigns 85-90% to holds when the true frequency is closer to 80%) and underconfident during transitions (assigns 40-50% to hikes when the Fed actually hikes 70% of the time). This makes intuitive sense: Bayesian models have weak priors about regime changes.</p>
+<hr />
+<h2 id="honest-limitations">Honest Limitations</h2>
+<p><strong>The model cannot predict what it cannot see.</strong> Emergency actions, geopolitical shocks, and financial crises are inherently unforecastable from economic indicators alone.</p>
+<p><strong>The LLM track's advantage may be partly data leakage.</strong> The language model (qwen3:8b) was trained on text through mid-2025, which overlaps with nearly the entire 2020-2025 backtest period. The LLM track's apparent advantage over the MC track could be substantially attributable to memorized outcomes rather than superior reasoning. This is the most significant methodological limitation of the backtest — the LLM results cannot be interpreted as evidence of predictive skill without out-of-sample validation on meetings after the model's training cutoff.</p>
+<p><strong>Agent parameters are not independently estimated.</strong> Stance offsets and confidence levels are configured from public statements and voting records, not fit to backtest data. This is both a strength (no overfitting) and a weakness (no optimization). 40 meetings is too few to support parameter tuning without severe overfitting.</p>
+<p><strong>The model assumes stable preferences.</strong> A governor who was hawkish in 2022 might become dovish in 2024. The model captures some of this through Bayesian updating, but the underlying stance offsets are static.</p>
+<hr />
+<h2 id="the-value-of-reasoning-traces">The Value of Reasoning Traces</h2>
+<p>The most valuable output is not the rate prediction. It is the reasoning trace.</p>
+<p>For every simulated meeting, the system produces: which indicators each agent weighted, how beliefs updated in response to signals, where each agent landed on the hawk-dove spectrum, who dissented and why, and how the two tracks diverged.</p>
+<p>This trace is useful regardless of prediction accuracy. A wrong prediction with a clear reasoning trace teaches you something: "The model expected a hold because inflation was declining, but the Fed cut because of labor market deterioration." That explanation is itself a structured hypothesis about Fed behavior that can be examined and refined.</p>
+<p>A correct prediction with no trace teaches you nothing. You got lucky.</p>
+<p>The FOMC Simulation Platform is, at its core, a reasoning engine that happens to produce a number at the end. The number matters less than the structure that produced it.</p>
+<p>Subscribe for next week's article on the persona factory — how two LLM agents chain together to produce 19 distinct, grounded FOMC personalities from speech data and stance classification.</p>
+<p>— Vincent</p>
+
+    
+    <section class="charts">
+        <h2 id="charts">Charts</h2>
+        
+        <figure>
+            <img src="charts/16_rate_trajectory.png" alt="Rate trajectory comparing MC predictions, LLM predictions, and actual FOMC decisions from 2020-2026" loading="lazy">
+            <figcaption>Rate trajectory — MC (blue), LLM (orange), and actual (green) across 48 meetings</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/17_backtest_accuracy.png" alt="Backtest accuracy showing absolute prediction error per meeting for MC, LLM, and combined tracks" loading="lazy">
+            <figcaption>Prediction accuracy — absolute error per meeting, both tracks</figcaption>
+        </figure>
+        
+    </section>
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

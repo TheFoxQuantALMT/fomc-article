@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Lessons from building a 10-service FOMC simulation platform — the compound effect of small decisions, what matters in multi-agent systems, and the first live prediction.">
+<meta property="og:title" content="What I Learned Building an 80,000-Line AI Simulation of the Federal Reserve">
+<meta property="og:description" content="The compound effect of thousands of small decisions, what the project taught me about building complex systems, and running the first live FOMC prediction.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="software engineering, lessons learned, multi-agent systems, AI simulation, Federal Reserve, Python, microservices">
+<title>What I Learned Building an 80,000-Line AI Simulation of the Federal Reserve</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="what-i-learned-building-an-80000-line-ai-simulation-of-the-federal-reserve">What I Learned Building an 80,000-Line AI Simulation of the Federal Reserve</h1>
+<p class="subtitle" role="doc-subtitle">Series conclusion — the compound effect of thousands of small decisions, what the project taught me about building complex systems, and running the first live FOMC prediction.</p>
+<hr />
+<p>Over twelve articles, I have described the architecture, implementation, and evaluation of a multi-agent simulation platform for Federal Reserve monetary policy. Ten microservices. Three databases. A RAG pipeline with vector search and knowledge graph. Bayesian and Monte Carlo engines. LLM-powered deliberation with 19 agents. A 16-page React dashboard. A backtesting framework that honestly assesses what works and what does not.</p>
+<p>This final article is about what the project taught me — and what happens when we point it at a live FOMC meeting.</p>
+<hr />
+<h2 id="the-compound-effect-of-small-decisions">The Compound Effect of Small Decisions</h2>
+<p>The hardest thing about a project this size is not any individual component. It is the thousands of small engineering decisions that compound.</p>
+<p>Should the economy service store vintage data locally or query ALFRED at simulation time? Should the knowledge graph use Neo4j or NetworkX? Should the deliberation service rewrite assistant messages to user messages in GroupChat? Should the Monte Carlo track use correlated or independent signals? Should personas be absolute (<code>prior_mu: 5.25</code>) or relative (<code>stance_offset: +0.50</code>)?</p>
+<p>Each decision is individually minor. But they interact. The vintage data decision affects backtest reliability. The graph choice affects deployment complexity. The message rewriting affects persona maintenance. The signal correlation affects committee dynamics. The stance offset affects temporal portability.</p>
+<p>You cannot make these decisions in advance. You make them as you go, informed by the decisions you have already made, and you live with the ones you got wrong. The <code>stance_offset</code> migration happened eight months into the project, after backtesting revealed that absolute priors broke across rate regimes -- a problem that could have been caught earlier with a more disciplined approach to parameter design. Every simulation parameter should be defined relative to the current state, not pinned to an absolute value. The message rewriting fix came after two weeks of debugging persona collapse in multi-round deliberation. The batched analysis mode in the Beige Book service was a performance optimization that only became obvious after the granular mode proved catastrophically slow on a single GPU.</p>
+<p>If I started over, I would build the backtest framework first. Backtesting revealed fundamental issues -- regime change blindness, calibration overconfidence, the LLM data leakage question -- that would have shaped architectural decisions if I had known about them earlier. The evaluation framework should drive the design, not the other way around. I would also start with the dashboard, not the backend. Building ten microservices before building the frontend meant half the API endpoints were never used, and several visualizations required data that no endpoint provided. A mock dashboard first forces you to define what data you actually need.</p>
+<p>The skill is not making perfect decisions. It is making recoverable ones — and recognizing when a decision needs to be reversed.</p>
+<hr />
+<h2 id="what-actually-matters-in-multi-agent-systems">What Actually Matters in Multi-Agent Systems</h2>
+<p>After building five services that use LLM agents, I have strong opinions about what matters and what does not.</p>
+<p><strong>Structured output extraction matters more than prompt engineering.</strong> I spent weeks refining agent prompts. The actual reliability breakthrough was the multi-format JSON parser with Qwen3 think-block stripping, last-brace fallback, and range validation. Getting LLMs to produce structured data is a parsing problem at least as much as a prompting problem.</p>
+<p><strong>Concurrency models must match hardware.</strong> The Beige Book service's move from parallel to sequential district processing — counterintuitive on paper — delivered a 3x speedup on a single GPU. Theory says parallelize everything. Practice says understand your bottleneck.</p>
+<p><strong>Graceful degradation is non-negotiable.</strong> Every LLM call in the system has a non-LLM fallback. Batched mode falls back to granular. Granular falls back to rule-based. The verification agent falls back from TF-IDF to keyword overlap. If your system requires every LLM call to succeed, your system does not work.</p>
+<p><strong>Context providers are the most underrated pattern.</strong> The ability to inject dynamic state before each agent turn — and to rewrite conversation history — solved problems that no amount of prompt engineering could fix. The GroupChat role-rewriting bug alone justified the entire framework investment.</p>
+<p><strong>Stateless services are underappreciated.</strong> The comparison service — no database, no cache, pure functions — is the most reliable, testable, and deployable service in the platform. Not everything needs state.</p>
+<p><strong>Use fewer, larger services.</strong> Ten microservices was arguably three too many. The hawk-dove service, belief-formation service, and member service could have been a single service without meaningful loss of separation of concerns. The deployment and debugging overhead of each additional service is real -- and I say this having built and maintained all ten.</p>
+<hr />
+<h2 id="the-first-live-analysis">The First Live Analysis</h2>
+<p>The January 28-29, 2026 FOMC meeting was the first live test. Here is what happens when I point the platform at a live decision for the first time.</p>
+<p><strong>Phase 0 — Data Collection.</strong> The economy service pulls the latest vintage data from FRED, BLS, and BEA. The Beige Book service generates a synthetic district report from current indicators and news. Everything is timestamped — we will know exactly which data the agents saw.</p>
+<p><strong>Phase 1 — Belief Formation.</strong> Each of the 19 agents receives the economic briefing and forms an initial rate belief. The stance offsets, calibrated from speech data through the persona factory, anchor each agent to their characteristic position relative to the current FFR.</p>
+<p><strong>Phase 2 — Dual-Track Prediction.</strong> The Monte Carlo track runs 10,000 committee simulations. The LLM deliberation track runs a full five-round meeting. Both execute in parallel — CPU-bound and GPU-bound workloads overlapping.</p>
+<p><strong>Phase 3 — Comparison.</strong> The comparison service reconciles the two tracks. Pearson correlation on per-agent beliefs. Welch's t-test on rate distributions. Cohen's d effect size. Agreement classification.</p>
+<p><strong>The Output.</strong> A probability distribution over rate actions, a committee dot plot, belief evolution traces for all 19 agents, a full deliberation transcript, and a calibration assessment based on the backtest track record.</p>
+<p>The results — predictions, reasoning traces, and a post-decision assessment — demonstrate that the reasoning trace is valuable regardless of whether the point prediction was correct.</p>
+<hr />
+<h2 id="the-real-point">The Real Point</h2>
+<p>This project is not about predicting the Fed. Fed Funds futures markets do that with more liquidity, more information, and more incentive alignment than any simulation can match.</p>
+<p>The point is the structure. The platform is a framework for organizing economic reasoning — for asking "what would 19 informed people with different perspectives conclude from the same data?" That question is useful whether the final rate prediction is right or wrong.</p>
+<p>It is also a demonstration of what one person can build with modern tools. Ten microservices, three databases, a RAG pipeline, Bayesian engines, multi-agent LLM orchestration, a React dashboard, and a backtesting framework — built over evenings and weekends by a treasury analyst who has been writing Python since 2010. The tools are better than they have ever been. The barriers are lower than they have ever been. The projects worth building are more ambitious than they have ever been.</p>
+<p>If this series has sparked ideas for your own work — whether in finance, AI engineering, or something else entirely — I would enjoy hearing about it.</p>
+<p>— Vincent</p>
+<hr />
+<p><em>Thank you for reading the complete 13-part series on the FOMC Simulation Platform. If you found value in these articles, sharing them with a colleague who works at the intersection of finance and AI would mean a lot. Subscribe for the live FOMC analysis and future projects.</em></p>
+
+    
+    <section class="charts">
+        <h2 id="charts">Charts</h2>
+        
+        <figure>
+            <img src="charts/16_rate_trajectory.png" alt="Complete rate trajectory showing MC, LLM, and actual FOMC decisions across the full 2020-2026 backtest period" loading="lazy">
+            <figcaption>Series recap — dual-track predictions vs actual FOMC decisions, 2020-2026</figcaption>
+        </figure>
+        
+    </section>
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Bayesian Monte Carlo simulation of FOMC committee voting — conjugate priors, correlated signals, game-theoretic dissent costs, and 10,000 iterations without a single LLM call.">
+<meta property="og:title" content="10,000 Committee Votes Per Second: Monte Carlo Meets Bayesian Inference">
+<meta property="og:description" content="The statistical backbone of a dual-track FOMC simulation — conjugate priors, correlated signal models, and game-theoretic dissent costs.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="Monte Carlo simulation, Bayesian inference, FOMC voting, committee dynamics, conjugate priors, game theory">
+<title>10,000 Committee Votes Per Second: Monte Carlo Meets Bayesian Inference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="10000-committee-votes-per-second-monte-carlo-meets-bayesian-inference">10,000 Committee Votes Per Second: Monte Carlo Meets Bayesian Inference</h1>
+<p class="subtitle" role="doc-subtitle">The statistical backbone of a dual-track FOMC simulation — conjugate priors, correlated signal models, game-theoretic dissent costs, and why zero LLM calls was a feature, not a limitation.</p>
+<hr />
+<p>Eight times a year, twelve voting members of the Federal Open Market Committee decide the cost of money for the entire global economy. They argue, compromise, and eventually vote. Some dissent. The chair shapes the agenda. The result moves trillions of dollars.</p>
+<p>I wanted to simulate that process — not with language models generating plausible-sounding text, but with a rigorous statistical engine that could run the committee decision 10,000 times and produce a probability distribution over outcomes. The result is the Monte Carlo Simulation Service: 5,149 lines of Python, zero LLM calls, pure numerical computation. It runs alongside the LLM deliberation track from last week's article, and the two approaches are compared downstream to see where they agree and where they diverge.</p>
+<hr />
+<h2 id="beliefs-as-gaussian-distributions">Beliefs as Gaussian Distributions</h2>
+<p>Every FOMC member is represented as an agent with a normal distribution over interest rates:</p>
+<pre><code class="language-python">@dataclass
+class FOMCAgent:
+    name: str
+    role: Literal[&quot;Chair&quot;, &quot;Vice Chair&quot;, &quot;Governor&quot;, &quot;President&quot;]
+    mu: float = 4.25       # Where they think rates should be
+    sigma: float = 0.40    # How confident they are
+    dissent_cost: float | None = None
+</code></pre>
+<p>The <code>mu</code> and <code>sigma</code> fully parameterize a belief. A hawkish agent might sit at <code>mu = 4.75, sigma = 0.25</code> — rates should be higher, and I am quite sure. A dovish agent at <code>mu = 3.50, sigma = 0.50</code> — lower rates, but more uncertain.</p>
+<p>The <code>dissent_cost</code> captures institutional dynamics. The Chair has a cost of 10.0 — it is extraordinarily costly for the Chair to dissent — and since the Chair sets the proposal, this effectively anchors the committee. Regional bank presidents have a cost of 2.5. This asymmetry is calibrated from historical FOMC voting records where chairs almost never face dissent on their proposals, while presidents dissent in roughly 5-10% of meetings.</p>
+<hr />
+<h2 id="conjugate-normal-normal-updating">Conjugate Normal-Normal Updating</h2>
+<p>When an agent receives a noisy economic signal, they update beliefs using conjugate Bayesian updating. This is a closed-form solution — no MCMC sampling, no variational approximation, no numerical optimization. Just algebra.</p>
+<p>The key insight is that precisions (inverse of variance) add:</p>
+<pre><code class="language-python">def bayesian_update_single(mu_prior, sigma_prior, signal, sigma_signal):
+    tau_prior  = 1.0 / (sigma_prior ** 2)
+    tau_signal = 1.0 / (sigma_signal ** 2)
+
+    mu_post    = (tau_prior * mu_prior + tau_signal * signal) / (tau_prior + tau_signal)
+    sigma_post = 1.0 / np.sqrt(tau_prior + tau_signal)
+
+    return mu_post, sigma_post
+</code></pre>
+<p>If the agent's prior is very precise (low sigma, high tau), the signal barely moves their belief. If the signal is very precise — hard economic data rather than noisy estimates — it dominates. This is precision-weighted averaging, and it is the mathematical foundation of the entire simulation.</p>
+<p>For the vectorized path (10,000+ iterations), this same logic is broadcast across a <code>(n_iterations × n_agents)</code> matrix:</p>
+<pre><code class="language-python">tau_prior  = 1.0 / (sigma_prior_clamped ** 2)      # (n_agents,)
+tau_signal = 1.0 / (sigma_signal_clamped ** 2)      # scalar
+
+mu_post_matrix = (
+    (tau_prior[np.newaxis, :] * mu_arr[np.newaxis, :]
+     + tau_signal * signals_matrix)
+    / (tau_prior[np.newaxis, :] + tau_signal)
+)  # (n_iters, n_agents)
+</code></pre>
+<p>The posterior sigma is identical across iterations — it depends only on prior and signal precision, not on the signal value — so it collapses to a single vector. The hot path is pure NumPy.</p>
+<hr />
+<h2 id="correlated-signals">Correlated Signals</h2>
+<p>Agents do not receive information in a vacuum. All FOMC members observe the same economy — they just interpret it differently. The signal model captures this with a common factor:</p>
+<pre><code class="language-python"># eps_i = sqrt(rho) * z_common + sqrt(1-rho) * z_individual
+eps = (math.sqrt(rho_c) * z_common[:, np.newaxis]
+       + math.sqrt(1 - rho_c) * z_indiv)
+signals_matrix = mu_arr[np.newaxis, :] + eps
+</code></pre>
+<p>When <code>rho = 0.6</code>, 60% of the signal variance comes from the common factor (the shared economy) and 40% from idiosyncratic interpretation. This prevents the unrealistic case where hawks and doves receive completely unrelated information.</p>
+<hr />
+<h2 id="consensus-rounds-proximity-gated-deliberation">Consensus Rounds: Proximity-Gated Deliberation</h2>
+<p>Between signal reception and voting, agents go through consensus rounds — a model of the deliberation process using a three-tier proximity gate:</p>
+<pre><code class="language-python">if distance &gt; 1.0:
+    # Dug in — no consensus pull
+    updated[name] = (mu, sigma)
+elif distance &gt; 0.5:
+    # Skeptical — half pull, no variance decay
+    alpha_i = 0.5 * alpha_base * (variance / reference_variance)
+    mu_new = mu + alpha_i * (mu_bar - mu)
+elif distance &lt;= 0.5:
+    # Persuadable — full pull + variance decay
+    alpha_i = alpha_base * (variance / reference_variance)
+    mu_new = mu + alpha_i * (mu_bar - mu)
+    sigma_new = math.sqrt(gamma * variance)
+</code></pre>
+<p>Agents within 50bp of consensus get the full pull and their uncertainty shrinks. Agents 50-100bp away get half the pull. Agents more than 100bp away do not budge. The tighter threshold in later tiers reflects diminishing returns from additional deliberation -- once an agent is more than 100bp from the committee center, no amount of collegial discussion is going to move them, and the historical record confirms this. These specific thresholds (100bp and 50bp) were calibrated against backtesting data to produce realistic convergence rates: the simulation needed to match the empirical fact that most FOMC votes are 11-1 or 12-0, with rare 2+ dissent meetings, while still allowing genuine disagreement to persist when agents hold strong priors.</p>
+<p>This models the empirical observation that strong hawks and doves rarely change their minds, while centrist members are more persuadable.</p>
+<p>The consensus target is credibility-weighted — the Chair receives 2.0, Vice Chair 1.5, others 0.8. This gives the chair outsized influence, matching the empirical literature on Fed chair agenda control.</p>
+<hr />
+<h2 id="the-vote-and-agenda-control">The Vote and Agenda Control</h2>
+<p>After consensus rounds, the chair proposes a rate and voting members decide whether to dissent. Dissent probability increases with distance from the proposal and decreases with institutional cost. The chair's proposal uses a weighted blend: 30% chair's preference, 70% committee median. This "agenda weight" is surprisingly powerful — varying the chair's strategy between MEDIAN, MEAN, and STATUS_QUO produces meaningfully different rate distributions even when agent beliefs are held constant.</p>
+<p>The final rate is always snapped to the 25bp grid, because the Fed sets the target range exclusively in multiples of 25 basis points.</p>
+<hr />
+<h2 id="multi-meeting-forward-paths">Multi-Meeting Forward Paths</h2>
+<p>The simulation chains meetings together to produce forward rate trajectories — a probabilistic dot plot:</p>
+<pre><code class="language-python">class MultiMeetingPathSimulator:
+    def _simulate_single_path(self, path_idx):
+        path = []
+        current_rate = self.initial_rate
+
+        for meeting in range(self.n_meetings):
+            # Drift priors toward the status quo between meetings
+            for agent in agents_copy:
+                agent.mu = 0.7 * agent.mu + 0.3 * current_rate
+
+            track = MonteCarloTrack(agents=agents_copy, config=cfg)
+            result = track.run(context=self.context, previous_rate=current_rate)
+            current_rate = result.mean_rate
+            path.append(current_rate)
+        return path
+</code></pre>
+<p>Over 500 paths and 6 meetings, this produces fan charts with percentile bands, cumulative easing/tightening probabilities, and shock vectors at each horizon — ready for downstream risk engines.</p>
+<hr />
+<h2 id="convergence-diagnostics">Convergence Diagnostics</h2>
+<p>Running 10,000 iterations is only useful if results have converged. An <code>AdaptiveConvergenceChecker</code> monitors the running mean in batches, requiring three consecutive stable batches (delta &lt; 0.5bp) before declaring convergence. The diagnostic output includes effective sample size via Geyer's initial-positive-sequence method, and BCa (Bias-Corrected and Accelerated) bootstrap confidence intervals that handle the skewness inherent in rate distributions.</p>
+<p>A <code>WelfordAccumulator</code> computes running statistics without storing all iteration results — numerically stable online mean and variance that matter when 100,000 iterations would otherwise blow up memory.</p>
+<hr />
+<h2 id="lessons-learned">Lessons Learned</h2>
+<p><strong>Conjugate priors are underrated.</strong> The entire Bayesian update is one line of arithmetic per agent. For problems where the conjugate form fits, the computational savings are enormous — 10,000 full committee simulations in seconds rather than hours.</p>
+<p><strong>Vectorization matters more than parallelism.</strong> Broadcasting the update across a <code>(10000, 19)</code> matrix eliminated Python loop overhead entirely for the most expensive step. This was a larger performance gain than multiprocess parallelism.</p>
+<p><strong>The zero-LLM constraint was a feature.</strong> By keeping this service purely numerical, it runs in milliseconds per iteration, produces reproducible results with fixed seeds, and can be validated against analytical solutions for simple cases. The LLM deliberation track runs in parallel as a complementary approach — the statistical track provides the quantitative anchor.</p>
+<p>Subscribe for next week's article on the Beige Book service — how 96 AI agents coordinate to produce synthetic Federal Reserve district reports, and why concurrency must match hardware, not theory.</p>
+<p>— Vincent</p>
+
+    
+    <section class="charts">
+        <h2 id="charts">Charts</h2>
+        
+        <figure>
+            <img src="charts/09_rate_distribution.png" alt="Monte Carlo rate distribution histogram showing probability mass across 25bp rate buckets" loading="lazy">
+            <figcaption>Rate distribution — 10,000 MC iterations clustered at the 25bp grid</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/10_mc_agent_beliefs.png" alt="Agent belief distributions showing prior and posterior rate preferences for 19 FOMC members" loading="lazy">
+            <figcaption>Agent beliefs — prior to posterior evolution after Bayesian updating</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/11_mc_summary_stats.png" alt="Monte Carlo summary statistics including mean rate, standard deviation, and convergence metrics" loading="lazy">
+            <figcaption>MC summary statistics — convergence diagnostics and confidence intervals</figcaption>
+        </figure>
+        
+    </section>
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="How survivorship bias in financial data corrupts ML models, and how point-in-time data engineering with FRED vintage queries prevents look-ahead bias in backtesting.">
+<meta property="og:title" content="The Silent Killer of Financial ML">
+<meta property="og:description" content="Point-in-time data engineering for honest backtesting — 21,000 lines, 7 async collectors, and the difference between a model that works and one that just looks brilliant.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="point-in-time data, financial ML, look-ahead bias, FRED API, vintage data, backtesting, data engineering">
+<title>The Silent Killer of Financial ML (And How I Built a Time-Travel Database to Fix It)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- News pipeline diagram -- */
+  .pipeline-sources {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 28px 0 32px;
+  }
+
+  .pipeline-source {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    position: relative;
+    transition: border-color 0.3s, background 0.3s;
+  }
+
+  .pipeline-source:hover {
+    border-color: var(--gold);
+    background: var(--bg-elevated);
+  }
+
+  .pipeline-source-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .pipeline-source p {
+    font-size: 0.88rem;
+    line-height: 1.65;
+    margin-bottom: 0;
+    color: var(--text-muted);
+  }
+
+  .pipeline-source p strong {
+    color: var(--text);
+  }
+
+  .pipeline-merge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0 28px;
+    padding: 0 4px;
+  }
+
+  .pipeline-merge-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border), var(--gold), var(--border));
+  }
+
+  .pipeline-merge-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .pipeline-stages {
+    display: flex;
+    gap: 0;
+    margin: 0 0 32px;
+    align-items: stretch;
+  }
+
+  .pipeline-stage {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 16px 18px;
+    position: relative;
+  }
+
+  .pipeline-stage:first-child {
+    border-radius: 8px 0 0 8px;
+  }
+
+  .pipeline-stage:last-child {
+    border-radius: 0 8px 8px 0;
+  }
+
+  .pipeline-stage + .pipeline-stage {
+    border-left: none;
+  }
+
+  .pipeline-stage-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .pipeline-stage p {
+    font-size: 0.82rem;
+    line-height: 1.55;
+    margin-bottom: 0;
+    color: var(--text-dim);
+  }
+
+  .pipeline-stage p code {
+    font-size: 0.78em;
+  }
+
+  .pipeline-arrow {
+    position: absolute;
+    right: -7px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    border-top: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    transform: translateY(-50%) rotate(45deg);
+    background: var(--bg);
+    z-index: 2;
+  }
+
+  /* -- Architecture flow diagram -- */
+  .arch-flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 28px 0 32px;
+  }
+
+  .arch-node {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 24px;
+    text-align: center;
+    width: 100%;
+    max-width: 520px;
+    position: relative;
+    transition: border-color 0.3s;
+  }
+
+  .arch-node:hover {
+    border-color: var(--gold);
+  }
+
+  .arch-node-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .arch-node-detail {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .arch-connector {
+    width: 1px;
+    height: 28px;
+    background: var(--border);
+    position: relative;
+  }
+
+  .arch-connector::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+
+  @media (max-width: 768px) {
+    .pipeline-sources {
+      grid-template-columns: 1fr;
+    }
+    .pipeline-stages {
+      flex-direction: column;
+    }
+    .pipeline-stage {
+      border-radius: 0;
+    }
+    .pipeline-stage:first-child {
+      border-radius: 8px 8px 0 0;
+    }
+    .pipeline-stage:last-child {
+      border-radius: 0 0 8px 8px;
+    }
+    .pipeline-stage + .pipeline-stage {
+      border-left: 1px solid var(--border);
+      border-top: none;
+    }
+    .pipeline-arrow { display: none; }
+    .arch-node { max-width: 100%; padding: 14px 16px; }
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="the-silent-killer-of-financial-ml-and-how-i-built-a-time-travel-database-to-fix-it">The Silent Killer of Financial ML (And How I Built a Time-Travel Database to Fix It)</h1>
+<p class="subtitle" role="doc-subtitle">Point-in-time data engineering for honest backtesting — 21,000 lines, 7 async collectors, and the difference between a model that looks brilliant and one that actually works.</p>
+<hr />
+<p>GDP growth for Q3 2025 was first reported as 2.8% on October 30, 2025. The second estimate on November 27 confirmed 2.8% — then the third estimate on December 19 revised it to 3.1%.</p>
+<p>If your model sees the 3.1% figure while simulating the January 2026 FOMC meeting, you have contaminated the simulation with information from the future. This is called look-ahead bias, and it is the silent killer of quantitative finance. Every hedge fund quant knows it. Most portfolio projects on GitHub ignore it entirely.</p>
+<p>The economy service in my FOMC simulation platform exists to solve exactly this problem. It is a 21,482-line Python microservice — the largest service in the system — and its entire job is answering a deceptively simple question: <em>what did the economy look like on date X, using only information that actually existed on date X?</em></p>
+<hr />
+<h2 id="why-this-is-hard">Why This Is Hard</h2>
+<p>Every major economic indicator gets revised. GDP gets revised three times. Payrolls get revised for months. The CPI number your model trained on for September 2025 is not the CPI number that existed in September 2025.</p>
+<p>If you pull GDP data from FRED today, you get the latest revised values — not the values that existed when the FOMC was making decisions. A model that trains on revised data will look brilliant in backtesting and collapse the moment it touches live data, because in production it only has access to the first estimate, not the third revision.</p>
+<p>The solution is vintage data: fetching each indicator as it existed on a specific date, not as it exists today. FRED provides this through ALFRED (Archival FRED), but building a system that enforces this constraint consistently across 130+ indicators from 7 different data sources is where the engineering challenge lives.</p>
+<hr />
+<h2 id="the-architecture">The Architecture</h2>
+<p>The economy service runs on port 9000 as a FastAPI microservice. It is the single source of truth for all macroeconomic data in the platform — no other service touches an external API.</p>
+<div class="arch-flow">
+  <div class="arch-node">
+    <span class="arch-node-label">Collectors</span>
+    <span class="arch-node-detail">7 async collectors → PostgreSQL<br>130+ series · 2,000+ observation days</span>
+  </div>
+  <div class="arch-connector"></div>
+  <div class="arch-node">
+    <span class="arch-node-label">RAG Pipeline</span>
+    <span class="arch-node-detail">Ollama embeddings → Qdrant + Neo4j</span>
+  </div>
+  <div class="arch-connector"></div>
+  <div class="arch-node">
+    <span class="arch-node-label">Intelligence Bundles</span>
+    <span class="arch-node-detail">National + per-district context packages</span>
+  </div>
+  <div class="arch-connector"></div>
+  <div class="arch-node">
+    <span class="arch-node-label">Downstream Services</span>
+    <span class="arch-node-detail">Belief formation · Deliberation · Comparison</span>
+  </div>
+</div>
+<p>Three critical design constraints:</p>
+<p><strong>Collectors only run during backfill.</strong> When the simulation pipeline requests data, it reads exclusively from the database. No live API calls during a simulation run. This makes simulations reproducible and fast.</p>
+<p><strong>Everything flows through port 9000.</strong> No other service in the system stores economic data or calls external APIs. This means point-in-time constraints are enforced in exactly one place.</p>
+<p><strong>Every value carries provenance.</strong> Each indicator comes with its observation date, data source, and freshness score relative to the meeting date.</p>
+<hr />
+<h2 id="fred-and-the-vintage-query">FRED and the Vintage Query</h2>
+<p>The critical method is <code>get_series_as_of_vintage</code>, which leverages ALFRED:</p>
+<pre><code class="language-python">async def get_series_as_of_vintage(
+    self,
+    series_id: str,
+    vintage_date: str,
+) -&gt; list[dict]:
+    &quot;&quot;&quot;Fetch observations using ALFRED vintage —
+    what was known as of vintage_date.
+
+    Critical for honest backtesting: uses only data
+    available at the time, avoiding look-ahead bias.
+    &quot;&quot;&quot;
+    return await self.get_series(
+        series_id,
+        realtime_start=vintage_date,
+        realtime_end=vintage_date,
+    )
+</code></pre>
+<p>Setting <code>realtime_start</code> and <code>realtime_end</code> to the same date tells FRED to return the data as it existed in its database on that specific date. GDP reported as 2.8% on October 30? That is the value you get if your vintage date is October 31, even though the "current" value has been revised to 3.1%.</p>
+<p>The rate limiting is dual-layered because during a full backfill of 130+ series across six years of data, you will hit FRED's API limits without discipline:</p>
+<pre><code class="language-python">class FREDCollector:
+    def __init__(self):
+        self._semaphore = asyncio.Semaphore(self.rate_limit)
+        self._min_interval = 60.0 / self.rate_limit
+        self._last_request_time: float = 0.0
+
+    async def _request(self, endpoint, params=None):
+        async with self._semaphore:
+            elapsed = time.monotonic() - self._last_request_time
+            if elapsed &lt; self._min_interval:
+                await asyncio.sleep(self._min_interval - elapsed)
+            response = await self.client.get(url, params=params)
+            self._last_request_time = time.monotonic()
+</code></pre>
+<p>A semaphore bounds concurrency and a monotonic clock enforces minimum intervals between requests.</p>
+<hr />
+<h2 id="multi-source-ingestion">Multi-Source Ingestion</h2>
+<p>FRED is the backbone, but four other sources fill in gaps:</p>
+<p><strong>BLS</strong> provides JOLTS data (job openings, hires, quits), earnings distribution, and state-level unemployment via LAUS series. The state-level data matters because each of the 12 Federal Reserve districts covers multiple states — the collector fetches per-state data and computes district-level averages.</p>
+<p><strong>BEA</strong> provides NIPA tables including GDP components that FRED does not carry at the granularity needed.</p>
+<p><strong>FRASER</strong> (the Fed's historical archive) provides historical FOMC minutes, speeches, and Beige Books for the RAG pipeline.</p>
+<p><strong>SearXNG</strong> (self-hosted meta-search) provides financial news aggregation, with each article getting a publication date that participates in the point-in-time constraint.</p>
+<p>Every value from every source passes through <code>validate_range()</code> before storage. An unemployment rate of 500% or a negative CPI index means the data source returned garbage. Catching this at ingestion time prevents corrupted data from reaching the simulation agents.</p>
+<hr />
+<h2 id="the-news-pipeline">The News Pipeline</h2>
+<p>Structured indicators tell you <em>what</em> the economy is doing. News tells you <em>why</em> — and what the people making decisions are saying about it. The news collector stitches four distinct channels into a single, deduplicated, date-stamped article stream.</p>
+
+<div class="pipeline-sources">
+  <div class="pipeline-source">
+    <span class="pipeline-source-label">Fed speeches</span>
+    <p>Scrapes the official speech index by year. Each speaker is <strong>mapped to their district</strong> — Powell tagged national, Kashkari tagged Minneapolis — so downstream agents receive news scoped to their region.</p>
+  </div>
+  <div class="pipeline-source">
+    <span class="pipeline-source-label">Regional bank RSS</span>
+    <p>RSS feeds from all 12 regional banks, with <strong>HTML fallback</strong> for banks that block feeds (New York, Richmond). Parses RSS 2.0 and Atom 1.0, normalising dates to ISO 8601.</p>
+  </div>
+  <div class="pipeline-source">
+    <span class="pipeline-source-label">SearXNG meta-search</span>
+    <p>Self-hosted Docker container — <strong>no API key, no data leaving the network.</strong> Fans out to Google News, Bing News, and DuckDuckGo News. Month-by-month keyword searches bounded by <code>asyncio.Semaphore(4)</code>.</p>
+  </div>
+  <div class="pipeline-source">
+    <span class="pipeline-source-label">Fed press releases</span>
+    <p>Monetary policy announcements from the Fed archive. <strong>Keyword-filtered</strong> — only articles matching "monetary policy", "federal funds", "rate decision" are kept.</p>
+  </div>
+</div>
+
+<div class="pipeline-merge">
+  <span class="pipeline-merge-line"></span>
+  <span class="pipeline-merge-label">merge &amp; process</span>
+  <span class="pipeline-merge-line"></span>
+</div>
+
+<div class="pipeline-stages">
+  <div class="pipeline-stage">
+    <span class="pipeline-stage-label">Dedup</span>
+    <p>URL hash — first in wins. Upsert on URL makes backfill idempotent.</p>
+    <span class="pipeline-arrow"></span>
+  </div>
+  <div class="pipeline-stage">
+    <span class="pipeline-stage-label">Score</span>
+    <p>Keyword relevance (0–1). "Inflation expectations" scores higher than "Fed building renovation."</p>
+    <span class="pipeline-arrow"></span>
+  </div>
+  <div class="pipeline-stage">
+    <span class="pipeline-stage-label">Tag themes</span>
+    <p>Ollama classifies against 16 canonical themes: <code>wage_pressures</code>, <code>inflation_concerns</code>, <code>energy_costs</code>…</p>
+  </div>
+</div>
+
+<p>The theme vocabulary is deliberately narrow: 16 themes, not 160. A controlled vocabulary means agents can aggregate themes by district and spot patterns — "three of the last five Dallas articles mention <code>energy_costs</code>" — without drowning in free-text noise. The themes are aggregated by district and time window, giving each agent a structured summary of what their region's economic narrative looks like heading into the meeting.</p>
+<hr />
+<h2 id="the-snapshot-40-indicators-in-one-query">The Snapshot: 40+ Indicators in One Query</h2>
+<p>When the simulation pipeline requests data for a meeting date, the <code>SnapshotService</code> builds a <code>NationalSnapshot</code> by reading from the database:</p>
+<pre><code class="language-python">class SnapshotService:
+    async def build_current_snapshot(self, session, as_of=None):
+        as_of = as_of or date.today()
+
+        # Parallelize all independent DB queries
+        (gdp_val, gdp_dt), (cpi_val, cpi_dt), \
+        (core_pce_val, core_pce_dt), (fed_funds, fed_funds_dt), \
+        (unemp, unemp_dt), ... = await asyncio.gather(
+            _get_latest_with_date(&quot;fred&quot;, fred[&quot;gdp&quot;][&quot;id&quot;]),
+            _get_latest_with_date(&quot;fred&quot;, fred[&quot;cpi&quot;][&quot;id&quot;]),
+            _get_latest_with_date(&quot;fred&quot;, fred[&quot;core_pce&quot;][&quot;id&quot;]),
+            # ... 40+ more indicators
+        )
+</code></pre>
+<p>The <code>asyncio.gather</code> here is critical. Each query is independent. Without gather, building a snapshot serializes 40+ database queries. With it, they all run concurrently against the connection pool.</p>
+<p>Every indicator is returned with its observation date:</p>
+<pre><code class="language-python">macro = MacroData(
+    gdp_growth=IndicatorValue(
+        value=gdp_growth,
+        unit=&quot;percent&quot;,
+        observation_date=gdp_growth_dt
+    ),
+    cpi=IndicatorValue(
+        value=cpi_val,
+        unit=&quot;index&quot;,
+        observation_date=cpi_dt,
+        yoy_change=cpi_trend.get(&quot;yoy_change&quot;),
+        trend=cpi_trend.get(&quot;trend&quot;)
+    ),
+)
+</code></pre>
+<p>The <code>observation_date</code> field is what makes this a point-in-time system. When you query for the January 2026 meeting, you see CPI with its observation date of December 2025 — the most recent release before the meeting — not March or April data that had not been published yet.</p>
+<p>Derived indicators are computed in-line: yield spread (10Y minus 2Y), real rate (fed funds minus CPI YoY), 3-month trend direction, and 10-year historical percentile. A <code>freshness_score</code> stamps every indicator with how stale it is — GDP from three months ago gets a lower freshness score than last week's unemployment number, giving downstream agents a signal about which data to weight more heavily.</p>
+<hr />
+<h2 id="the-context-package">The Context Package</h2>
+<p>The snapshot feeds into a larger context assembly system. The <code>ContextService</code> combines structured indicators with unstructured text — Beige Book excerpts, FOMC minutes, speeches, news articles, and RAG-retrieved passages — all filtered to the same as-of date:</p>
+<pre><code class="language-python"># All text sources are date-bounded:
+#   SELECT * FROM speeches WHERE date &lt;= :as_of_date
+#   SELECT * FROM beige_books WHERE release_date &lt;= :as_of_date
+#   Qdrant: search_date_bounded(query, as_of_date)
+</code></pre>
+<p>The output includes a <code>data_editions</code> block recording which vintage of each indicator was used. This is the provenance chain — if a simulation produces unexpected results, you can trace back to see that GDP was the first estimate (1.6%) rather than the third revision (3.0%), and understand why the agents behaved as they did.</p>
+<hr />
+<h2 id="resilience-patterns">Resilience Patterns</h2>
+<p>Three patterns that saved significant debugging time:</p>
+<p><strong>Bulk upsert with <code>ON CONFLICT</code>.</strong> Run the backfill twice and you get the same database state, not duplicate rows. The entire ingestion pipeline is idempotent — <code>make populate</code> is safe to run repeatedly.</p>
+<p><strong>Circuit breaker.</strong> The incremental update path uses a circuit breaker (<code>failure_threshold=3, recovery_timeout=120s</code>) so that if FRED goes down mid-update, the service fails fast rather than burning through retry budgets on every remaining series.</p>
+<p><strong>SSE progress streaming.</strong> The backfill can take 10-15 minutes across all sources. An SSE endpoint pushes real-time progress to the dashboard: "FRED national (42 series) — 30%", "BLS districts (12 series) — 60%". Without this, you are staring at terminal output hoping it has not hung.</p>
+<p>There are limits to these patterns. The backfill currently overwrites previous values, so there is no local history of how an indicator was revised over time. A production system should store every vintage of every indicator with <code>edition_date</code> as a first-class column -- I use ALFRED for vintage queries at runtime, but storing the vintages locally would eliminate that API dependency entirely. Similarly, six years of daily data across 130+ series is manageable in a flat table, but scaling to twenty years would benefit from PostgreSQL date-range partitioning on <code>indicator_values</code>. And the current polling-based ingestion could be replaced with webhooks or CDC (Change Data Capture) to detect new FRED releases within minutes rather than hours.</p>
+<hr />
+<h2 id="why-it-matters">Why It Matters</h2>
+<p>The economy service is the foundation everything else sits on. The 19 AI agents deliberating about monetary policy are only as good as the data they reason from, and that data must respect the boundaries of what was knowable at the time.</p>
+<p>This is not a problem unique to FOMC simulation. Any system that backtests financial strategies, trains models on economic data, or makes predictions based on time-series indicators faces the same challenge. The difference between "our model predicted 2020 correctly" and "our model predicted 2020 correctly using data that existed in 2023" is the difference between a useful system and self-deception.</p>
+<p>Subscribe so you do not miss next week's deep dive into GraphRAG — how I combined Qdrant vector search with a knowledge graph to give agents structured economic reasoning that pure vector similarity cannot provide.</p>
+<p>— Vincent</p>
+<hr />
+
+    
+    <section class="charts">
+        <h2 id="charts">Charts</h2>
+        
+        <figure>
+            <img src="charts/02_economic_dashboard.png" alt="Economic dashboard showing key indicators with observation dates and freshness scores" loading="lazy">
+            <figcaption>Economic snapshot — 40+ indicators with point-in-time observation dates</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/03_yield_curve.png" alt="Treasury yield curve with 2Y-10Y spread indicator" loading="lazy">
+            <figcaption>Yield curve with spread indicator — inverted curves signal recession risk</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/04_indicators_table.png" alt="Economic indicators table with values, units, and data freshness scores" loading="lazy">
+            <figcaption>Indicator values with provenance — observation dates and freshness scores</figcaption>
+        </figure>
+        
+        <figure>
+            <img src="charts/19_vintage_timeline.png" alt="GDP vintage timeline showing how initial estimates get revised over months" loading="lazy">
+            <figcaption>GDP vintage timeline — first estimate vs. revisions over time</figcaption>
+        </figure>
+
+        <figure>
+            <img src="charts/dashboard-economy.png" alt="Live Economy Dashboard showing Fed Funds Rate, Yield Curve, CPI, Unemployment, GDP Growth, and Treasury yields" loading="lazy">
+            <figcaption>Live dashboard — the economy service data rendered in the React frontend</figcaption>
+        </figure>
+
+    </section>
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>

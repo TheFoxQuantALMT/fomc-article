@@ -1,0 +1,117 @@
+%%{init: {
+  'theme': 'dark',
+  'themeVariables': {
+    'primaryColor': '#1a2332',
+    'primaryTextColor': '#e8dcc8',
+    'primaryBorderColor': '#c9a84c',
+    'lineColor': '#5a7a9a',
+    'secondaryColor': '#0d1520',
+    'tertiaryColor': '#162233',
+    'fontFamily': 'JetBrains Mono, Fira Code, monospace',
+    'fontSize': '13px',
+    'nodeBorder': '#c9a84c',
+    'mainBkg': '#1a2332',
+    'clusterBkg': '#0d1520',
+    'clusterBorder': '#2a3a4a',
+    'titleColor': '#c9a84c',
+    'edgeLabelBackground': '#0d1520'
+  }
+}}%%
+
+graph TB
+    %% ─── Entry Point ───
+    CLI["<b>make simulate DATE=2026-01-28</b><br/><i>Single command entry point</i>"]
+
+    %% ─── Orchestrator ───
+    ORCH["<b>🎯 Orchestrator</b><br/>Port 8010<br/><i>Pipeline coordination &amp; health checks</i>"]
+
+    CLI --> ORCH
+
+    %% ─── Phase 0: Data Collection ───
+    subgraph PHASE0["<b>PHASE 0 — Data Collection</b>"]
+        direction TB
+        ECON["<b>📊 Economy Service</b><br/>Port 9000<br/><i>7 async collectors · Point-in-time data</i><br/><i>FRED · BLS · BEA · FRASER · CME · News · Fed</i>"]
+        BEIGE["<b>📋 Beige Book Service</b><br/>Port 8001<br/><i>12 districts × 4-5 analysts</i><br/><i>~40 concurrent LLM calls</i>"]
+        HAWK["<b>🦅 Hawk-Dove Classifier</b><br/>Port 8006<br/><i>Dictionary + Ollama dual signal</i><br/><i>Graceful degradation</i>"]
+    end
+
+    %% ─── Member Service ───
+    MEMBER["<b>👥 Member Service</b><br/>Port 8007<br/><i>19 FOMC personas · Stance offsets</i><br/><i>Canonical member truth</i>"]
+
+    %% ─── Phase 1: Belief Formation ───
+    subgraph PHASE1["<b>PHASE 1 — Belief Formation</b>"]
+        BELIEF["<b>🧠 Belief Formation</b><br/>Port 8002<br/><i>Persona → Bayesian priors</i><br/><i>μ = current_ffr + stance_offset</i>"]
+    end
+
+    %% ─── Phase 2: Dual-Track Prediction ───
+    subgraph PHASE2["<b>PHASE 2 — Dual-Track Prediction</b>"]
+        direction TB
+        subgraph TRACK_MC["<b>Statistical Track</b>"]
+            MC["<b>🎲 Monte Carlo</b><br/>Port 8003<br/><i>10,000 iterations</i><br/><i>Conjugate Bayesian updating</i><br/><i>Correlated signals · Dissent costs</i>"]
+        end
+        subgraph TRACK_LLM["<b>Narrative Track</b>"]
+            LLM["<b>💬 LLM Deliberation</b><br/>Port 8004<br/><i>5-round structured debate</i><br/><i>19 agents · Natural language</i><br/><i>Signal extraction pipeline</i>"]
+        end
+    end
+
+    %% ─── Comparison ───
+    COMP["<b>⚖️ Comparison Service</b><br/>Port 8005<br/><i>Pearson · Welch's t-test · Cohen's d</i><br/><i>Brier score · CRPS · Calibration</i>"]
+
+    %% ─── Dashboard ───
+    DASH["<b>📈 Dashboard</b><br/>Port 3002<br/><i>React 19 · 16 pages · 20+ chart types</i><br/><i>SSE streaming · TanStack Query</i>"]
+
+    %% ─── Infrastructure Layer ───
+    subgraph INFRA["<b>INFRASTRUCTURE — 27 Containers</b>"]
+        direction LR
+        PG["<b>PostgreSQL</b><br/><i>Relational store</i>"]
+        QDRANT["<b>Qdrant</b><br/><i>Vector search</i>"]
+        NEO4J["<b>Neo4j</b><br/><i>Knowledge graph</i>"]
+        REDIS["<b>Redis</b><br/><i>Cache</i>"]
+        OLLAMA["<b>Ollama</b><br/><i>Local LLM inference</i>"]
+        SEARX["<b>SearXNG</b><br/><i>Meta-search</i>"]
+    end
+
+    subgraph OBS["<b>OBSERVABILITY</b>"]
+        direction LR
+        PROM["Prometheus"]
+        GRAF["Grafana"]
+        LOKI["Loki"]
+        ALERT["AlertManager"]
+        NGINX["nginx + TLS"]
+    end
+
+    %% ─── Flow Connections ───
+    ORCH --> PHASE0
+    ORCH --> MEMBER
+    PHASE0 --> PHASE1
+    MEMBER --> PHASE1
+    PHASE1 --> PHASE2
+    MC --> COMP
+    LLM --> COMP
+    COMP --> DASH
+
+    %% ─── Infrastructure Connections ───
+    ECON -.-> PG
+    ECON -.-> QDRANT
+    ECON -.-> NEO4J
+    ECON -.-> SEARX
+    BEIGE -.-> OLLAMA
+    HAWK -.-> OLLAMA
+    BELIEF -.-> OLLAMA
+    LLM -.-> OLLAMA
+    BEIGE -.-> REDIS
+    MC -.-> PG
+
+    %% ─── Styling ───
+    classDef phase fill:#0d1520,stroke:#2a3a4a,stroke-width:2px,color:#7a9ab8
+    classDef service fill:#1a2332,stroke:#c9a84c,stroke-width:2px,color:#e8dcc8
+    classDef infra fill:#162233,stroke:#3a5a6a,stroke-width:1px,color:#7a9ab8
+    classDef obs fill:#121c28,stroke:#2a3a4a,stroke-width:1px,color:#5a7a8a
+    classDef entry fill:#2a1a10,stroke:#c9a84c,stroke-width:3px,color:#c9a84c
+    classDef dashboard fill:#1a2332,stroke:#4a9a6a,stroke-width:2px,color:#e8dcc8
+
+    class CLI entry
+    class ORCH,ECON,BEIGE,HAWK,BELIEF,MC,LLM,COMP,MEMBER service
+    class DASH dashboard
+    class PG,QDRANT,NEO4J,REDIS,OLLAMA,SEARX infra
+    class PROM,GRAF,LOKI,ALERT,NGINX obs

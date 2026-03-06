@@ -1,0 +1,99 @@
+%%{init: {
+  'theme': 'dark',
+  'themeVariables': {
+    'primaryColor': '#1a2332',
+    'primaryTextColor': '#e8dcc8',
+    'primaryBorderColor': '#c9a84c',
+    'lineColor': '#5a7a9a',
+    'secondaryColor': '#0d1520',
+    'tertiaryColor': '#162233',
+    'fontFamily': 'JetBrains Mono, Fira Code, monospace',
+    'fontSize': '13px',
+    'nodeBorder': '#c9a84c',
+    'mainBkg': '#1a2332',
+    'clusterBkg': '#0d1520',
+    'clusterBorder': '#2a3a4a',
+    'titleColor': '#c9a84c',
+    'edgeLabelBackground': '#0d1520'
+  }
+}}%%
+
+graph TB
+    %% ─── Entry ───
+    QUERY["<b>🔍 Query Input</b><br/><i>query + as_of_date + member_role</i>"]
+
+    %% ─── Phase 1: Document Ingestion ───
+    subgraph INGEST["<b>DOCUMENT INGESTION</b>"]
+        direction TB
+        CHUNK["<b>📄 Structure-Aware Chunker</b><br/><i>Beige Book 400w · Minutes 600w</i><br/><i>Speeches 500w · Statements 1000w</i><br/><i>50-word overlap · para → sent → word</i>"]
+        ENTITY["<b>🏷️ Entity Extractor</b><br/><i>Regex + SpeakerRegistry · No LLM</i><br/><i>speaker · district · indicator · topic</i><br/><i>~50 indicators · 12 districts · 30 members</i>"]
+        EMBED["<b>📐 Embeddings</b><br/><i>Ollama qwen3-embedding:0.6b</i><br/><i>1024-dim · batch 32 · LRU cache 256</i>"]
+    end
+
+    %% ─── Phase 2: Storage ───
+    subgraph STORE["<b>STORAGE LAYER</b>"]
+        direction LR
+        QDRANT["<b>Qdrant Vector Store</b><br/><i>Collection: fomc_chunks</i><br/><i>Cosine distance · 1024-dim</i><br/><i>Date-int YYYYMMDD filtering</i><br/><i>UUID5 deterministic keys</i>"]
+        NEO4J["<b>Neo4j Knowledge Graph</b><br/><i>Chunk · Speaker · District</i><br/><i>Topic · Indicator · Stance</i><br/><i>DELIVERED · REPRESENTS</i><br/><i>SPOKE_ABOUT · MEASURED_BY</i><br/><i>REPORTED_IN · CONTRIBUTES_TO</i><br/><i>MERGE-based · idempotent</i>"]
+    end
+
+    %% ─── Query Builder ───
+    QBUILD["<b>🎯 Query Builder</b><br/><i>Member-aware routing</i><br/><i>Chair/Governor → national scope</i><br/><i>President → district scope</i><br/><i>Stance + theme expansion</i>"]
+
+    %% ─── Parallel Retrieval ───
+    subgraph RETRIEVE["<b>PARALLEL RETRIEVAL — strategy: parallel_merge</b>"]
+        direction LR
+        subgraph VPATH["<b>Vector Path</b>"]
+            VSEARCH["<b>Qdrant Semantic Search</b><br/><i>Cosine similarity</i><br/><i>date ≤ as_of filter</i><br/><i>top_k × 3 candidates</i>"]
+        end
+        subgraph GPATH["<b>Graph Path</b>"]
+            GSEARCH["<b>Neo4j Graph Traversal</b><br/><i>2-hop entity expansion</i><br/><i>max 10 related chunks</i><br/><i>Chunk → Entity → Chunk</i>"]
+        end
+    end
+
+    %% ─── Fusion Pipeline ───
+    subgraph FUSION["<b>FUSION PIPELINE</b>"]
+        direction TB
+        RRF["<b>⚡ Reciprocal Rank Fusion</b><br/><i>α=0.5 · k=60 (Cormack 2009)</i><br/><i>score = α/(k+rank_v) + (1−α)/(k+rank_g)</i><br/><i>Dual-source bonus: both > either</i>"]
+        RERANK["<b>🎯 FlashRank Reranker</b><br/><i>ms-marco-MiniLM-L-12-v2</i><br/><i>ONNX cross-encoder · CPU-only</i><br/><i>~100ms · 4MB model</i>"]
+        MMR["<b>🔀 MMR Diversification</b><br/><i>λ=0.7 · 70% relevance · 30% diversity</i><br/><i>Greedy cosine-similarity selection</i>"]
+    end
+
+    %% ─── Output ───
+    OUTPUT["<b>📋 Ranked Context</b><br/><i>top_k = 15 passages</i><br/><i>for LLM Agent</i>"]
+
+    %% ─── Ingestion Connections ───
+    CHUNK --> EMBED
+    EMBED --> |embeddings| QDRANT
+    CHUNK --> ENTITY
+    ENTITY --> |entities + rels| NEO4J
+
+    %% ─── Query Flow ───
+    QUERY -.-> |query + as_of_date + role| QBUILD
+    QBUILD --> |expanded query| VSEARCH
+    QBUILD --> |seed entities| GSEARCH
+    QDRANT -.-> VSEARCH
+    NEO4J -.-> GSEARCH
+
+    %% ─── Fusion Flow ───
+    VSEARCH --> |ranked by cosine sim| RRF
+    GSEARCH --> |ranked by hop distance| RRF
+    RRF --> |merged candidates| RERANK
+    RERANK --> |reranked top_k × 2| MMR
+    MMR --> |final top_k = 15| OUTPUT
+
+    %% ─── Styling ───
+    classDef ingestion fill:#1a2332,stroke:#58A6FF,stroke-width:2px,color:#e8dcc8
+    classDef storage fill:#1a2332,stroke:#3FB950,stroke-width:2px,color:#e8dcc8
+    classDef query fill:#2a1a10,stroke:#c9a84c,stroke-width:3px,color:#c9a84c
+    classDef retrieval fill:#1a2332,stroke:#c9a84c,stroke-width:2px,color:#e8dcc8
+    classDef fusion fill:#1a2332,stroke:#BC4DFF,stroke-width:2px,color:#e8dcc8
+    classDef output fill:#1a2332,stroke:#3FB950,stroke-width:3px,color:#e8dcc8
+
+    class QUERY query
+    class CHUNK,ENTITY,EMBED ingestion
+    class QDRANT,NEO4J storage
+    class QBUILD query
+    class VSEARCH,GSEARCH retrieval
+    class RRF,RERANK,MMR fusion
+    class OUTPUT output

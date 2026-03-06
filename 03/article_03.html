@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Combining Qdrant vector search with a NetworkX knowledge graph for financial intelligence — entity extraction, structure-aware chunking, and Reciprocal Rank Fusion.">
+<meta property="og:title" content="When Vector Search Isn't Enough: GraphRAG for Financial Intelligence">
+<meta property="og:description" content="Combining vector search with a knowledge graph to answer questions that similarity alone cannot — structure-aware chunking and Reciprocal Rank Fusion.">
+<meta property="og:type" content="article">
+<meta name="keywords" content="GraphRAG, vector search, knowledge graph, Qdrant, financial NLP, RAG pipeline, entity extraction">
+<title>When Vector Search Isn't Enough: GraphRAG for Financial Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f;
+    --bg-card: #0d1520;
+    --bg-elevated: #121e2d;
+    --gold: #c9a84c;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --text: #c8d6e5;
+    --text-bright: #e8dcc8;
+    --text-muted: #7a9ab8;
+    --text-dim: #6b8ead;
+    --blue: #4a9aff;
+    --red: #ff6b4a;
+    --green: #4a9a6a;
+    --purple: #a78bfa;
+    --border: #2a4a66;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* -- Grain -- */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* -- Article container -- */
+  .article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+  }
+
+  /* -- Headings -- */
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 400;
+    color: var(--text-bright);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.15rem;
+    color: var(--text-bright);
+    font-weight: 400;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Body text -- */
+  p {
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 168, 76, 0.3);
+    transition: border-color 0.3s;
+  }
+
+  a:hover {
+    border-bottom-color: var(--gold);
+  }
+
+  /* -- Lists -- */
+  ul, ol {
+    margin: 16px 0 24px 24px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 8px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  li strong { color: var(--text-bright); }
+
+  /* -- Blockquote -- */
+  blockquote {
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    border-left: 3px solid var(--gold);
+    padding-left: 24px;
+    margin: 24px 0 32px;
+    line-height: 1.7;
+  }
+
+  blockquote strong {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* -- Code blocks -- */
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    overflow-x: auto;
+  }
+
+  pre code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85em;
+    color: var(--gold);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* -- Tables -- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 32px;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(201, 168, 76, 0.03);
+  }
+
+  /* -- Horizontal rule -- */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* -- Images -- */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 24px 0;
+    display: block;
+  }
+
+  figure {
+    margin: 32px 0;
+    text-align: center;
+  }
+
+  figure img {
+    margin: 0 auto;
+  }
+
+  figcaption {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  /* -- Charts section -- */
+  .charts {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+
+  .charts h2 {
+    margin-top: 0;
+  }
+
+  /* -- Table of contents -- */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 32px 0;
+  }
+
+  .toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc li {
+    margin-bottom: 6px;
+  }
+
+  .toc a {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-bottom: none;
+  }
+
+  .toc a:hover {
+    color: var(--gold);
+  }
+
+  /* -- Footer -- */
+  footer {
+    text-align: center;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 60px;
+  }
+
+  footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* -- Responsive -- */
+  @media (max-width: 768px) {
+    .article { padding: 40px 16px 80px; }
+    pre { padding: 16px; }
+    table { font-size: 0.8rem; }
+    thead th, tbody td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<article class="article">
+    <h1 id="when-vector-search-isnt-enough-graphrag-for-financial-intelligence">When Vector Search Isn't Enough: GraphRAG for Financial Intelligence</h1>
+<p class="subtitle" role="doc-subtitle">Combining Qdrant vector search with a knowledge graph to answer questions that similarity alone cannot — structure-aware chunking, entity extraction without LLMs, and Reciprocal Rank Fusion.</p>
+<hr />
+<p>Here is a question that breaks naive RAG: "What did the San Francisco Fed president say about inflation expectations after the September Beige Book was released?"</p>
+<p>A standard vector search will return chunks that are semantically similar — paragraphs mentioning inflation expectations, San Francisco Fed passages, September Beige Book excerpts. But it cannot connect them. It does not know that Mary Daly is the San Francisco Fed president, that she gave a speech on October 3 referencing the September Beige Book, or that the Beige Book's 12th District section reported accelerating service-sector prices that she later cited.</p>
+<p>This is the gap between retrieval and reasoning. Vector search finds similar text. What I needed was a system that understands that Speaker A represents District B, spoke about Topic C, which is measured by Indicator D — and can traverse those connections to assemble context that no single chunk contains.</p>
+<p>The economy service in my FOMC simulation platform uses a dual-retrieval architecture: Qdrant for vector search and a Neo4j knowledge graph for entity-relationship traversal, merged using Reciprocal Rank Fusion. Here is how it works.</p>
+<hr />
+<h2 id="why-pure-vector-search-fails-for-financial-documents">Why Pure Vector Search Fails for Financial Documents</h2>
+<p>Financial documents have a specific structure that resists flat embedding. Consider the FOMC minutes. They are organized into sections: "Staff Review of the Economic Situation", "Participants' Views on Current Conditions", "Committee Policy Action". Each section serves a different function — the staff review is descriptive, the participants' views are argumentative, the policy action section is prescriptive.</p>
+<p>When you embed these as flat chunks, you lose the structural context. A chunk from the staff review that says "the unemployment rate edged down to 3.7 percent" and a chunk from participants' views that says "several participants noted the labor market remained tight" will both score well against a query about employment. But only the second one tells you what FOMC members actually <em>thought</em> about it — and knowing which members said it, and whether they were hawks or doves, changes the interpretation entirely.</p>
+<p>Vector search also cannot perform multi-hop reasoning. If you ask "which indicators concern the districts that reported slowdowns," you need to: (1) find Beige Book chunks mentioning slowdowns, (2) identify which districts those came from, (3) find what indicators those districts track, and (4) retrieve recent values. That is a graph traversal, not a similarity search.</p>
+<hr />
+<h2 id="the-dual-retrieval-architecture">The Dual-Retrieval Architecture</h2>
+<p>A query flows through the system like this:</p>
+<ol>
+<li>User (or agent) asks a question with an <code>as_of_date</code></li>
+<li>The query goes to both Qdrant (vector search) and the knowledge graph (entity traversal)</li>
+<li>Qdrant returns semantically similar chunks, date-bounded to <code>as_of_date</code></li>
+<li>The knowledge graph expands those results by 1-2 hops to find related chunks</li>
+<li>Reciprocal Rank Fusion merges both result sets into a single ranked list</li>
+<li>MMR diversification removes near-duplicate results</li>
+<li>Optional reranking via cross-encoder</li>
+</ol>
+<hr />
+<h2 id="chunking-strategy-structure-aware-not-just-size-based">Chunking Strategy: Structure-Aware, Not Just Size-Based</h2>
+<p>The chunker does not blindly split documents every 500 tokens. It understands the structure of each document type:</p>
+<p><strong>Beige Books</strong> are chunked by district section. Each of the 12 districts gets its own chunks with district metadata attached:</p>
+<pre><code class="language-python">def chunk_beige_book(beige_book_id, release_date,
+                     national_summary, district_sections,
+                     chunk_size=500):
+    chunks = []
+    # National summary as its own chunk(s)
+    if national_summary:
+        for i, piece in enumerate(_split_text(national_summary, chunk_size)):
+            prefixed = f&quot;[Beige Book National Summary] {piece}&quot;
+            chunks.append(DocumentChunk(
+                chunk_id=f&quot;beige_book_{beige_book_id}_national_{i}&quot;,
+                text=prefixed,
+                doc_type=&quot;beige_book&quot;,
+                date=release_date,
+                metadata={&quot;district&quot;: &quot;national&quot;},
+            ))
+    # District sections with district metadata
+    for ds in district_sections:
+        district_id = ds.get(&quot;district_id&quot;, &quot;unknown&quot;)
+        for i, piece in enumerate(_split_text(ds[&quot;section_text&quot;], chunk_size)):
+            prefixed = f&quot;[{_district_label(district_id)} District] {piece}&quot;
+            chunks.append(DocumentChunk(..., metadata={&quot;district&quot;: district_id}))
+    return chunks
+</code></pre>
+<p><strong>FOMC minutes</strong> get structured section detection. The chunker looks for known heading patterns and splits accordingly:</p>
+<pre><code class="language-python">_FOMC_SECTION_PATTERNS = [
+    (&quot;economic_review&quot;,    re.compile(r&quot;staff\s+review\s+of\s+the\s+economic&quot;, re.I)),
+    (&quot;participants_views&quot;, re.compile(r&quot;participants['\u2019]?\s+views?&quot;, re.I)),
+    (&quot;policy_action&quot;,      re.compile(r&quot;committee\s+policy\s+action&quot;, re.I)),
+    (&quot;voting&quot;,             re.compile(r&quot;(?:unanimous\s+vote|voting\s+for)&quot;, re.I)),
+]
+</code></pre>
+<p><strong>Speeches</strong> get speaker attribution in their chunk prefix: <code>[Speech by Jerome Powell: Monetary Policy and the Dual Mandate]</code>. The embedding itself carries speaker identity, making vector search speaker-aware without requiring a metadata filter.</p>
+<p>Text splitting uses a three-tier approach: paragraph-level (keeps topics together), sentence-level (for oversized paragraphs), word-level (fallback for giant sentences). The 50-word overlap ensures continuity across chunk boundaries.</p>
+<hr />
+<h2 id="entity-extraction-fast-deterministic-no-llm-required">Entity Extraction: Fast, Deterministic, No LLM Required</h2>
+<p>A common GraphRAG approach calls an LLM for entity extraction on every chunk. That is expensive and non-deterministic. My entity extractor uses pattern matching instead:</p>
+<pre><code class="language-python">_INDICATOR_PATTERNS = {
+    &quot;CPI&quot;:          re.compile(r&quot;\bCPI\b|consumer\s+price\s+index&quot;, re.I),
+    &quot;PCE&quot;:          re.compile(r&quot;\bPCE\b|personal\s+consumption&quot;, re.I),
+    &quot;unemployment&quot;: re.compile(r&quot;unemployment\s+rate|jobless\s+rate&quot;, re.I),
+    &quot;GDP&quot;:          re.compile(r&quot;\bGDP\b|gross\s+domestic\s+product&quot;, re.I),
+    &quot;payrolls&quot;:     re.compile(r&quot;nonfarm\s+payrolls?|payroll\s+employment&quot;, re.I),
+    # ... 15+ more
+}
+
+_SPEAKER_REGISTRY = {
+    &quot;powell&quot;: &quot;Jerome Powell&quot;,
+    &quot;yellen&quot;: &quot;Janet Yellen&quot;,
+    &quot;waller&quot;: &quot;Christopher Waller&quot;,
+    # ... all FOMC members
+}
+</code></pre>
+<p>For a domain like monetary policy, the entity vocabulary is finite and well-defined. There are ~50 economic indicators, 12 districts, and roughly 30 current and recent FOMC members. Regex matching is faster, cheaper, and perfectly reproducible — every run produces the same entity set, unlike LLM-based extraction where you get different entities depending on temperature and prompt.</p>
+<p>The extracted entities become nodes in the knowledge graph, connected to the chunks they appear in.</p>
+<hr />
+<h2 id="the-knowledge-graph">The Knowledge Graph</h2>
+<p>The graph is backed by NetworkX for fast in-process traversal, with Neo4j available as an optional persistence and scaling layer:</p>
+<pre><code>Entity types: speaker, district, indicator, topic, document
+Edge types:   mentions, represents, measures, published_in, spoke_about
+</code></pre>
+<p>When a chunk from a Jerome Powell speech mentions CPI and the San Francisco district, the graph creates:</p>
+<pre><code>chunk:speech_powell_2024_03 --mentions--&gt; indicator:CPI
+chunk:speech_powell_2024_03 --mentions--&gt; district:san_francisco
+speaker:Jerome Powell --authored--&gt; chunk:speech_powell_2024_03
+</code></pre>
+<p>The power is in the graph's traversal capabilities. With <code>max_hops=2</code>, a query can discover that: a speech chunk mentions Jerome Powell, Jerome Powell connects to FOMC minutes where he participated, those minutes discuss unemployment, and a Beige Book chunk also references unemployment. Two hops, four document types, connected by shared entities.</p>
+<pre><code class="language-python">def expand_from_chunks(self, seed_chunk_ids, max_hops=2, max_expansion=10):
+    related_chunks = set()
+    frontier = {f&quot;chunk:{cid}&quot; for cid in seed_chunk_ids}
+
+    for hop in range(max_hops):
+        entity_nodes = set()
+        for chunk_node in frontier:
+            for neighbor in self._graph.predecessors(chunk_node):
+                if not neighbor.startswith(&quot;chunk:&quot;):
+                    entity_nodes.add(neighbor)
+
+        next_frontier = set()
+        for ent_node in entity_nodes:
+            for neighbor in self._graph.successors(ent_node):
+                if neighbor.startswith(&quot;chunk:&quot;) and neighbor not in visited_chunks:
+                    related_chunks.add(neighbor)
+                    if len(related_chunks) &gt;= max_expansion:
+                        break
+        frontier = next_frontier
+
+    return [c.removeprefix(&quot;chunk:&quot;) for c in related_chunks]
+</code></pre>
+<p>The <code>max_expansion=10</code> cap prevents the graph from returning hundreds of tangentially related chunks. In practice, 2 hops with 10 expansion chunks is the sweet spot — it surfaces genuinely relevant context without drowning the LLM in noise.</p>
+<hr />
+<h2 id="reciprocal-rank-fusion-merging-two-retrieval-worlds">Reciprocal Rank Fusion: Merging Two Retrieval Worlds</h2>
+<p>RRF merges the vector results and graph-expanded results into a single ranked list:</p>
+<pre><code class="language-python">def rrf_merge(qdrant_results, neo4j_results,
+              alpha=0.5, k=60, top_k=15):
+    &quot;&quot;&quot;score(d) = alpha/(k + rank_qdrant) + (1-alpha)/(k + rank_neo4j)&quot;&quot;&quot;
+
+    for cid, entry in entries.items():
+        rank_q = qdrant_ranks.get(cid, qdrant_penalty)
+        rank_n = neo4j_ranks.get(cid, neo4j_penalty)
+        rrf_score = alpha / (k + rank_q) + (1 - alpha) / (k + rank_n)
+        entry[&quot;rrf_score&quot;] = rrf_score
+</code></pre>
+<p>The <code>alpha=0.5</code> gives equal weight to vector and graph results. The <code>k=60</code> smoothing constant (from the original Cormack et al. 2009 paper) prevents any single high-ranked item from dominating.</p>
+<p>The penalty rank is subtle but important: items missing from one source are penalized with <code>len(results) + 1</code>. This ensures that a chunk appearing in <em>both</em> sources always outscores a chunk appearing in only one, all else being equal. A passage that is semantically similar (Qdrant) <em>and</em> structurally connected (graph) to the query is more likely relevant than one that only matches on one dimension.</p>
+<hr />
+<h2 id="date-bounded-search-the-point-in-time-constraint">Date-Bounded Search: The Point-in-Time Constraint</h2>
+<p>Every search respects the same point-in-time constraint as the structured data from the economy service. Dates are stored as integers (20260128 for 2026-01-28) for efficient numeric range filtering in Qdrant:</p>
+<pre><code class="language-python">def search_date_bounded(self, query, as_of_date, top_k=15):
+    date_int = self._date_str_to_int(as_of_date)
+    must_conditions = [
+        FieldCondition(key=&quot;date&quot;, range=Range(gt=0, lte=date_int)),
+    ]
+    response = self._client.query_points(
+        collection_name=self._collection_name,
+        query=query_embedding,
+        query_filter=query_filter,
+        limit=top_k,
+    )
+</code></pre>
+<p>When simulating the January 2026 FOMC meeting, this filter ensures we never retrieve a Beige Book released in April, a speech given in May, or minutes published in June.</p>
+<hr />
+<h2 id="embeddings-ollama-not-openai">Embeddings: Ollama, Not OpenAI</h2>
+<p>Every embedding is generated by Ollama running locally using <code>qwen3-embedding:0.6b</code>. No external API dependency for vector operations — no OpenAI, no Cohere, no API key required.</p>
+<p>This is a deliberate architectural choice. The system handles potentially sensitive economic analysis. Sending every chunk to an external embedding API introduces latency, cost, and a data exfiltration surface. For a domain-specific retrieval task where the entity extractor and knowledge graph handle the heavy reasoning, embeddings only need to provide reasonable semantic similarity — not world-class performance.</p>
+<p>Query embeddings are cached using an <code>OrderedDict</code>-based LRU cache, so repeated queries (common during multi-agent deliberation where several agents ask similar questions) do not regenerate embeddings.</p>
+<hr />
+<h2 id="the-lesson">The Lesson</h2>
+<p>RAG is not just "embed and search." For domains with structured entities and typed relationships — financial analysis, medical records, legal documents, supply chain data — a knowledge graph is not a nice-to-have. It is the difference between finding similar text and actually reasoning about the connections in your data.</p>
+<p>The combination of structure-aware chunking, deterministic entity extraction, graph traversal, and principled fusion through RRF produces retrieval quality that pure vector search cannot match for this domain. And it does it without a single external API call.</p>
+<p>Subscribe for next week's article on multi-agent deliberation — how 19 AI agents debate interest rate policy through 5 structured rounds, and why extracting structured signals from unstructured LLM output is the hardest engineering problem in the system.</p>
+<p>— Vincent</p>
+<hr />
+
+    
+    <section class="charts">
+        <h2 id="charts">Charts</h2>
+        
+        <figure>
+            <img src="charts/diagram-03-graphrag.png" alt="GraphRAG dual-retrieval architecture — vector search via Qdrant merged with knowledge graph traversal using Reciprocal Rank Fusion" loading="lazy">
+            <figcaption>Dual-retrieval architecture — Qdrant vector search + knowledge graph, merged via RRF</figcaption>
+        </figure>
+
+        <figure>
+            <img src="charts/knowledge-graph-drilldown.gif" alt="Knowledge graph drill-down — selecting Jerome Powell reveals spoke_about topic connections, then expanding shows temporal stance nodes (hawkish/neutral/dovish) flowing into the committee aggregate" loading="lazy">
+            <figcaption>Interactive drill-down: speaker node &rarr; topic connections &rarr; temporal stance history &rarr; committee aggregate</figcaption>
+        </figure>
+
+    </section>
+    
+</article>
+
+<footer>
+    <p>Generated from FOMC simulation data</p>
+</footer>
+</main>
+
+</body>
+</html>
